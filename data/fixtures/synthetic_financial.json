@@ -1,0 +1,63 @@
+{
+  "source_name": "synthetic_bank_fixture",
+  "checkpoint": "2026-01-02T00:00:00Z",
+  "accounts": [
+    {
+      "external_id": "ACC-100",
+      "name": "Operating",
+      "account_type": "checking"
+    },
+    {
+      "external_id": "ACC-200",
+      "name": "Reserve",
+      "account_type": "savings"
+    }
+  ],
+  "assets": [
+    {
+      "external_id": "USD",
+      "symbol": "USD",
+      "name": "US Dollar",
+      "asset_type": "fiat",
+      "decimals": 2
+    }
+  ],
+  "transactions": [
+    {
+      "external_id": "TX-1001",
+      "from_account_external_id": "ACC-100",
+      "to_account_external_id": "ACC-200",
+      "asset_external_id": "USD",
+      "amount": "1250.00",
+      "occurred_at": "2026-01-01T10:00:00Z",
+      "description": "Operating reserve transfer"
+    },
+    {
+      "external_id": "TX-1002",
+      "from_account_external_id": "ACC-200",
+      "to_account_external_id": "ACC-100",
+      "asset_external_id": "USD",
+      "amount": "250.00",
+      "occurred_at": "2026-01-01T11:00:00Z",
+      "description": "Reserve adjustment"
+    }
+  ],
+  "balances": [
+    {
+      "external_id": "BAL-100-20260101",
+      "account_external_id": "ACC-100",
+      "asset_external_id": "USD",
+      "opening_amount": "10000.00",
+      "amount": "9000.00",
+      "as_of": "2026-01-02T00:00:00Z"
+    },
+    {
+      "external_id": "BAL-200-20260101",
+      "account_external_id": "ACC-200",
+      "asset_external_id": "USD",
+      "opening_amount": "5000.00",
+      "amount": "6000.00",
+      "as_of": "2026-01-02T00:00:00Z"
+    }
+  ]
+}

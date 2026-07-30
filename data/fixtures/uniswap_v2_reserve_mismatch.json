@@ -1,0 +1,105 @@
+{
+  "protocol": "uniswap_v2",
+  "checkpoint": "19100001",
+  "checkpoint_timestamp": "2026-01-11T13:05:00Z",
+  "pair": {
+    "address": "0x9999999999999999999999999999999999999999",
+    "token0": "0x1111111111111111111111111111111111111111",
+    "token1": "0x2222222222222222222222222222222222222222"
+  },
+  "tokens": [
+    {
+      "address": "0x1111111111111111111111111111111111111111",
+      "symbol": "TK0",
+      "name": "Token Zero",
+      "decimals": 0
+    },
+    {
+      "address": "0x2222222222222222222222222222222222222222",
+      "symbol": "TK1",
+      "name": "Token One",
+      "decimals": 0
+    }
+  ],
+  "opening_balances": [
+    {
+      "address": "0x9999999999999999999999999999999999999999",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "1000"
+    },
+    {
+      "address": "0x9999999999999999999999999999999999999999",
+      "token_address": "0x2222222222222222222222222222222222222222",
+      "amount": "1000"
+    }
+  ],
+  "transactions": [
+    {
+      "tx_hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "block_number": 19100000,
+      "block_timestamp": "2026-01-11T13:00:00Z",
+      "from_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "to_address": "0x9999999999999999999999999999999999999999",
+      "success": true,
+      "metadata": {}
+    },
+    {
+      "tx_hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "block_number": 19100001,
+      "block_timestamp": "2026-01-11T13:01:00Z",
+      "from_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "to_address": "0x9999999999999999999999999999999999999999",
+      "success": true,
+      "metadata": {}
+    },
+    {
+      "tx_hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "block_number": 19100002,
+      "block_timestamp": "2026-01-11T13:02:00Z",
+      "from_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "to_address": "0x9999999999999999999999999999999999999999",
+      "success": true,
+      "metadata": {}
+    }
+  ],
+  "transfers": [],
+  "protocol_events": [
+    {
+      "event_name": "Sync",
+      "tx_hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "log_index": 1,
+      "reserve0": "1000",
+      "reserve1": "1000"
+    },
+    {
+      "event_name": "Swap",
+      "tx_hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "log_index": 2,
+      "sender": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "to": "0xcccccccccccccccccccccccccccccccccccccccc",
+      "amount0_in": "100",
+      "amount1_in": "0",
+      "amount0_out": "0",
+      "amount1_out": "90"
+    },
+    {
+      "event_name": "Sync",
+      "tx_hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "log_index": 3,
+      "reserve0": "1099",
+      "reserve1": "911"
+    }
+  ],
+  "balances": [
+    {
+      "address": "0x9999999999999999999999999999999999999999",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "1100"
+    },
+    {
+      "address": "0x9999999999999999999999999999999999999999",
+      "token_address": "0x2222222222222222222222222222222222222222",
+      "amount": "910"
+    }
+  ]
+}

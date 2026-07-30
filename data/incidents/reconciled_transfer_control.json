@@ -1,0 +1,124 @@
+{
+  "case": {
+    "case_id": "2539c284-7296-48ab-95ed-a2297c0f7826",
+    "name": "Reconciled transfer control",
+    "protocol": "generic_financial",
+    "chain": "research-simulation",
+    "category": "control",
+    "severity": "informational",
+    "confidence_level": "high",
+    "affected_contracts": [
+      "research:control-ledger"
+    ],
+    "attacker_addresses": [],
+    "reference_transactions": [
+      "TX-CONTROL"
+    ],
+    "external_references": [
+      "urn:sentinel:research-case:reconciled-transfer-control"
+    ],
+    "description": "A non-incident control case proving that a conserved transfer replays without false-positive incidents."
+  },
+  "taxonomy": {
+    "category": {
+      "category_id": "6030e02a-c229-41fb-88a4-2792918db75e",
+      "name": "Research controls",
+      "description": "Negative-label scenarios used to verify that valid financial behavior does not trigger incidents."
+    },
+    "subcategory": {
+      "subcategory_id": "165bdc08-bd5e-479a-8761-049f47244c02",
+      "name": "Conserved asset movement",
+      "description": "A transfer sequence that preserves asset supply and reconciles to expected balances."
+    }
+  },
+  "attack_pattern": {
+    "pattern_id": "0f247d98-24ea-47eb-92f2-05e9641550a2",
+    "name": "Benign conserved transfer",
+    "category": "control",
+    "description": "A negative-label control where asset movement conserves supply and reconciles to reported balances."
+  },
+  "attack_flow": [
+    {
+      "step_number": 1,
+      "event_id": null,
+      "action": "establish_state",
+      "description": "Establish a funded source account and empty destination account."
+    },
+    {
+      "step_number": 2,
+      "event_id": null,
+      "action": "transfer",
+      "description": "Transfer 100 units while conserving total supply."
+    },
+    {
+      "step_number": 3,
+      "event_id": null,
+      "action": "validate",
+      "description": "Reconstruct balances and verify that every invariant passes."
+    }
+  ],
+  "replay": {
+    "fixture": {
+      "source_name": "case_reconciled_transfer_control",
+      "checkpoint": "2026-03-14T00:00:00Z",
+      "accounts": [
+        {
+          "external_id": "CONTROL-A",
+          "name": "Control Source",
+          "account_type": "research"
+        },
+        {
+          "external_id": "CONTROL-B",
+          "name": "Control Destination",
+          "account_type": "research"
+        }
+      ],
+      "assets": [
+        {
+          "external_id": "USD",
+          "symbol": "USD",
+          "name": "Synthetic Dollar",
+          "asset_type": "research_asset",
+          "decimals": 2
+        }
+      ],
+      "transactions": [
+        {
+          "external_id": "TX-CONTROL",
+          "from_account_external_id": "CONTROL-A",
+          "to_account_external_id": "CONTROL-B",
+          "asset_external_id": "USD",
+          "amount": "100.00",
+          "occurred_at": "2026-03-13T10:00:00Z",
+          "description": "Conserved control transfer"
+        }
+      ],
+      "balances": [
+        {
+          "external_id": "BAL-CONTROL-A",
+          "account_external_id": "CONTROL-A",
+          "asset_external_id": "USD",
+          "opening_amount": "1000.00",
+          "amount": "900.00",
+          "as_of": "2026-03-14T00:00:00Z"
+        },
+        {
+          "external_id": "BAL-CONTROL-B",
+          "account_external_id": "CONTROL-B",
+          "asset_external_id": "USD",
+          "opening_amount": "0.00",
+          "amount": "100.00",
+          "as_of": "2026-03-14T00:00:00Z"
+        }
+      ]
+    },
+    "expected": {
+      "status": "succeeded",
+      "invariants": [],
+      "incidents": []
+    },
+    "flow_event_external_ids": {
+      "2": "TX-CONTROL"
+    }
+  }
+}

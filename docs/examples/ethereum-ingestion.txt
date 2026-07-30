@@ -1,0 +1,22 @@
+Ethereum ingestion example
+==========================
+
+This deterministic fixture path does not contact a public RPC endpoint.
+Generated batch IDs vary by run.
+
+$ uv run sentinel ingest ethereum data/fixtures/ethereum_valid_transfers.json
+Batch:        91def16c-1699-4c62-b83a-8735361c7a19
+Status:       succeeded
+Raw records:  4
+Core records: 9
+Attempt:      1
+Idempotent:   False
+Quality:      duplicate_external_ids: PASS
+Quality:      negative_amounts: PASS
+Quality:      required_fields: PASS
+Quality:      transaction_reconciliation: PASS
+Invariant:    balance_conservation: PASS
+Invariant:    balance_snapshot_match: PASS
+Invariant:    event_completeness: PASS
+Invariant:    no_negative_balances: PASS
+

@@ -1,0 +1,30 @@
+Dataset validation and export example
+=====================================
+
+$ uv run sentinel case import data/incidents/euler_style_accounting_failure.json
+Imported case: 2ea83b7e-ae7d-4cd5-83db-096f828b8a01
+Name:          Euler-style accounting failure
+Pattern:       Unbacked balance creation
+Taxonomy:      Financial state manipulation / Unauthorized supply change
+Attack steps:  3
+
+$ uv run sentinel case import data/incidents/reconciled_transfer_control.json
+Imported case: 2539c284-7296-48ab-95ed-a2297c0f7826
+Name:          Reconciled transfer control
+Pattern:       Benign conserved transfer
+Taxonomy:      Research controls / Conserved asset movement
+Attack steps:  3
+
+$ uv run sentinel dataset validate
+Cases checked: 2
+Valid:         True
+
+$ uv run sentinel dataset export
+Dataset:  data/exports/security_incidents.parquet
+Rows:     2
+Columns:  36
+Dataset version:    1.0.0
+Extraction version: 2.0.0
+Schema version:     2
+Generated at:       2026-07-30T17:29:40.187568Z
+

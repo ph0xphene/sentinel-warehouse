@@ -1,0 +1,57 @@
+{
+  "source_name": "event_create_money",
+  "checkpoint": "2026-01-02T00:00:00Z",
+  "accounts": [
+    {
+      "external_id": "ACC-A",
+      "name": "Account A",
+      "account_type": "checking"
+    },
+    {
+      "external_id": "ACC-B",
+      "name": "Account B",
+      "account_type": "checking"
+    }
+  ],
+  "assets": [
+    {
+      "external_id": "USD",
+      "symbol": "USD",
+      "name": "US Dollar",
+      "asset_type": "fiat",
+      "decimals": 2
+    }
+  ],
+  "transactions": [],
+  "events": [
+    {
+      "external_id": "EVT-CREATE-MONEY",
+      "event_type": "ADJUSTMENT",
+      "occurred_at": "2026-01-01T10:00:00Z",
+      "asset_external_id": "USD",
+      "account_to_external_id": "ACC-B",
+      "amount": "100.00",
+      "metadata": {
+        "reason": "unauthorized credit"
+      }
+    }
+  ],
+  "balances": [
+    {
+      "external_id": "BAL-A",
+      "account_external_id": "ACC-A",
+      "asset_external_id": "USD",
+      "opening_amount": "1000.00",
+      "amount": "1000.00",
+      "as_of": "2026-01-02T00:00:00Z"
+    },
+    {
+      "external_id": "BAL-B",
+      "account_external_id": "ACC-B",
+      "asset_external_id": "USD",
+      "opening_amount": "0.00",
+      "amount": "100.00",
+      "as_of": "2026-01-02T00:00:00Z"
+    }
+  ]
+}

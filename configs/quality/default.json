@@ -1,0 +1,20 @@
+{
+  "checks": {
+    "required_fields": {
+      "enabled": true,
+      "blocking": true
+    },
+    "duplicate_external_ids": {
+      "enabled": true,
+      "blocking": true
+    },
+    "negative_amounts": {
+      "enabled": true,
+      "blocking": true
+    },
+    "transaction_reconciliation": {
+      "enabled": true,
+      "blocking": true
+    }
+  }
+}

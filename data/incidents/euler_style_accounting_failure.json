@@ -1,0 +1,134 @@
+{
+  "case": {
+    "case_id": "2ea83b7e-ae7d-4cd5-83db-096f828b8a01",
+    "name": "Euler-style accounting failure",
+    "protocol": "generic_financial",
+    "chain": "research-simulation",
+    "category": "accounting",
+    "severity": "critical",
+    "confidence_level": "high",
+    "affected_contracts": [
+      "research:vault"
+    ],
+    "attacker_addresses": [
+      "research:attacker"
+    ],
+    "reference_transactions": [
+      "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ],
+    "external_references": [
+      "urn:sentinel:research-case:euler-style-accounting-failure"
+    ],
+    "description": "A deterministic research scenario inspired by lending-accounting failures. An unauthorized adjustment credits an attacker without a corresponding debit."
+  },
+  "taxonomy": {
+    "category": {
+      "category_id": "6a6965b7-c412-4cba-9927-07b1e20c33e6",
+      "name": "Financial state manipulation",
+      "description": "Attacks that create, destroy, or misstate financial value through invalid state transitions."
+    },
+    "subcategory": {
+      "subcategory_id": "f193b9e4-6998-4b0c-a9b4-59c2bf83bdd8",
+      "name": "Unauthorized supply change",
+      "description": "Tracked asset supply changes without an authorized mint, burn, source, or offsetting movement."
+    }
+  },
+  "attack_pattern": {
+    "pattern_id": "e83ed147-2503-4eb4-8a81-bb95c01331c8",
+    "name": "Unbacked balance creation",
+    "category": "accounting",
+    "description": "An accounting transition increases tracked supply without an authorized source or offsetting debit."
+  },
+  "attack_flow": [
+    {
+      "step_number": 1,
+      "event_id": null,
+      "action": "establish_state",
+      "description": "Establish the vault and attacker opening balances."
+    },
+    {
+      "step_number": 2,
+      "event_id": null,
+      "action": "manipulate_accounting",
+      "description": "Apply an unauthorized credit to the attacker account."
+    },
+    {
+      "step_number": 3,
+      "event_id": null,
+      "action": "detect_violation",
+      "description": "Balance conservation identifies the unbacked supply increase."
+    }
+  ],
+  "replay": {
+    "fixture": {
+      "source_name": "case_euler_style_accounting_failure",
+      "checkpoint": "2026-03-14T00:00:00Z",
+      "accounts": [
+        {
+          "external_id": "VAULT",
+          "name": "Research Vault",
+          "account_type": "protocol_vault"
+        },
+        {
+          "external_id": "ATTACKER",
+          "name": "Attacker",
+          "account_type": "external"
+        }
+      ],
+      "assets": [
+        {
+          "external_id": "USD",
+          "symbol": "USD",
+          "name": "Synthetic Dollar",
+          "asset_type": "research_asset",
+          "decimals": 2
+        }
+      ],
+      "transactions": [],
+      "events": [
+        {
+          "external_id": "EVT-EULER-ACCOUNTING",
+          "event_type": "ADJUSTMENT",
+          "occurred_at": "2026-03-13T10:00:00Z",
+          "asset_external_id": "USD",
+          "account_to_external_id": "ATTACKER",
+          "amount": "100.00",
+          "metadata": {
+            "reason": "unauthorized accounting credit",
+            "research_case": "Euler-style accounting failure"
+          }
+        }
+      ],
+      "balances": [
+        {
+          "external_id": "BAL-VAULT",
+          "account_external_id": "VAULT",
+          "asset_external_id": "USD",
+          "opening_amount": "1000.00",
+          "amount": "1000.00",
+          "as_of": "2026-03-14T00:00:00Z"
+        },
+        {
+          "external_id": "BAL-ATTACKER",
+          "account_external_id": "ATTACKER",
+          "asset_external_id": "USD",
+          "opening_amount": "0.00",
+          "amount": "100.00",
+          "as_of": "2026-03-14T00:00:00Z"
+        }
+      ]
+    },
+    "expected": {
+      "status": "failed",
+      "invariants": [
+        "balance_conservation"
+      ],
+      "incidents": [
+        "balance_conservation"
+      ]
+    },
+    "flow_event_external_ids": {
+      "2": "EVT-EULER-ACCOUNTING"
+    }
+  }
+}

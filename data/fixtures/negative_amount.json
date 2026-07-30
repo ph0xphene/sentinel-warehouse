@@ -1,0 +1,52 @@
+{
+  "source_name": "synthetic_negative_fixture",
+  "accounts": [
+    {
+      "external_id": "ACC-NEG-1",
+      "name": "Sender",
+      "account_type": "checking"
+    },
+    {
+      "external_id": "ACC-NEG-2",
+      "name": "Receiver",
+      "account_type": "checking"
+    }
+  ],
+  "assets": [
+    {
+      "external_id": "USD",
+      "symbol": "USD",
+      "name": "US Dollar",
+      "asset_type": "fiat",
+      "decimals": 2
+    }
+  ],
+  "transactions": [
+    {
+      "external_id": "TX-NEG",
+      "from_account_external_id": "ACC-NEG-1",
+      "to_account_external_id": "ACC-NEG-2",
+      "asset_external_id": "USD",
+      "amount": "-10.00",
+      "occurred_at": "2026-01-01T10:00:00Z"
+    }
+  ],
+  "balances": [
+    {
+      "external_id": "BAL-NEG-1",
+      "account_external_id": "ACC-NEG-1",
+      "asset_external_id": "USD",
+      "opening_amount": "100.00",
+      "amount": "110.00",
+      "as_of": "2026-01-02T00:00:00Z"
+    },
+    {
+      "external_id": "BAL-NEG-2",
+      "account_external_id": "ACC-NEG-2",
+      "asset_external_id": "USD",
+      "opening_amount": "50.00",
+      "amount": "40.00",
+      "as_of": "2026-01-02T00:00:00Z"
+    }
+  ]
+}

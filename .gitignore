@@ -1,0 +1,15 @@
+.env
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+htmlcov/
+data/*
+!data/.gitkeep
+!data/fixtures/
+!data/fixtures/*.json
+!data/incidents/
+!data/incidents/*.json

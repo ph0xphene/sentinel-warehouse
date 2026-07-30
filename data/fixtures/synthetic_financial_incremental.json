@@ -1,0 +1,36 @@
+{
+  "source_name": "synthetic_bank_fixture",
+  "previous_checkpoint": "2026-01-02T00:00:00Z",
+  "checkpoint": "2026-01-03T00:00:00Z",
+  "accounts": [],
+  "assets": [],
+  "transactions": [
+    {
+      "external_id": "TX-1003",
+      "from_account_external_id": "ACC-100",
+      "to_account_external_id": "ACC-200",
+      "asset_external_id": "USD",
+      "amount": "100.00",
+      "occurred_at": "2026-01-02T10:00:00Z",
+      "description": "Next-day reserve transfer"
+    }
+  ],
+  "balances": [
+    {
+      "external_id": "BAL-100-20260102",
+      "account_external_id": "ACC-100",
+      "asset_external_id": "USD",
+      "opening_amount": "9000.00",
+      "amount": "8900.00",
+      "as_of": "2026-01-03T00:00:00Z"
+    },
+    {
+      "external_id": "BAL-200-20260102",
+      "account_external_id": "ACC-200",
+      "asset_external_id": "USD",
+      "opening_amount": "6000.00",
+      "amount": "6100.00",
+      "as_of": "2026-01-03T00:00:00Z"
+    }
+  ]
+}

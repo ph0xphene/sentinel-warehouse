@@ -1,0 +1,50 @@
+Incident investigation example
+==============================
+
+Generated UUIDs and timestamps vary by run.
+
+$ uv run sentinel ingest fixture data/fixtures/event_create_money.json
+Batch:        4b19c3de-cb36-4aa0-897d-89d15d3b8c07
+Status:       failed
+Raw records:  6
+Core records: 0
+Attempt:      1
+Idempotent:   False
+Quality:      duplicate_external_ids: PASS
+Quality:      negative_amounts: PASS
+Quality:      required_fields: PASS
+Quality:      transaction_reconciliation: PASS
+Invariant:    balance_conservation: FAIL
+Invariant:    balance_snapshot_match: PASS
+Invariant:    event_completeness: PASS
+Invariant:    no_negative_balances: PASS
+
+$ uv run sentinel incident list
+INCIDENT_ID                           STATUS         SEVERITY  PROTOCOL      TYPE
+84c0702a-2168-42af-bc34-4c974c0a2de2  OPEN           critical  -             balance_conservation
+
+$ uv run sentinel incident show 84c0702a-2168-42af-bc34-4c974c0a2de2
+{
+  "batch_id": "4b19c3de-cb36-4aa0-897d-89d15d3b8c07",
+  "evidence": [
+    {
+      "affected_entity": "EVT-CREATE-MONEY",
+      "evidence_type": "invariant_violation",
+      "payload": {
+        "attempt_number": 1,
+        "external_id": "EVT-CREATE-MONEY",
+        "invariant": "balance_conservation",
+        "reason": "unauthorized supply change",
+        "severity": "critical",
+        "supply_delta": "100.00"
+      }
+    }
+  ],
+  "incident_id": "84c0702a-2168-42af-bc34-4c974c0a2de2",
+  "incident_type": "balance_conservation",
+  "protocol_name": null,
+  "severity": "critical",
+  "status": "OPEN",
+  "summary": "Transfers conserve asset totals and supply changes require authorization. Affected records: 1."
+}
+

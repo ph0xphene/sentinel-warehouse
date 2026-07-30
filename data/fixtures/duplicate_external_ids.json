@@ -1,0 +1,26 @@
+{
+  "source_name": "synthetic_duplicate_fixture",
+  "accounts": [
+    {
+      "external_id": "ACC-DUP",
+      "name": "First Account",
+      "account_type": "checking"
+    },
+    {
+      "external_id": "ACC-DUP",
+      "name": "Duplicate Account",
+      "account_type": "savings"
+    }
+  ],
+  "assets": [
+    {
+      "external_id": "USD",
+      "symbol": "USD",
+      "name": "US Dollar",
+      "asset_type": "fiat",
+      "decimals": 2
+    }
+  ],
+  "transactions": [],
+  "balances": []
+}

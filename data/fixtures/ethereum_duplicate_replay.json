@@ -1,0 +1,71 @@
+{
+  "previous_checkpoint": "19000000",
+  "checkpoint": "19000001",
+  "checkpoint_timestamp": "2026-01-10T12:06:00Z",
+  "tokens": [
+    {
+      "address": "0x1111111111111111111111111111111111111111",
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "decimals": 6
+    }
+  ],
+  "opening_balances": [
+    {
+      "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "900000000"
+    },
+    {
+      "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "75000000"
+    },
+    {
+      "address": "0xcccccccccccccccccccccccccccccccccccccccc",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "25000000"
+    }
+  ],
+  "transactions": [
+    {
+      "tx_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "block_number": 18999999,
+      "block_timestamp": "2026-01-10T12:00:00Z",
+      "from_address": "0xdddddddddddddddddddddddddddddddddddddddd",
+      "to_address": "0x1111111111111111111111111111111111111111",
+      "success": true,
+      "metadata": {
+        "chain_id": 1,
+        "replayed": true
+      }
+    }
+  ],
+  "transfers": [
+    {
+      "tx_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "log_index": 0,
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "from_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "to_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "amount": "100000000"
+    }
+  ],
+  "balances": [
+    {
+      "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "800000000"
+    },
+    {
+      "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "175000000"
+    },
+    {
+      "address": "0xcccccccccccccccccccccccccccccccccccccccc",
+      "token_address": "0x1111111111111111111111111111111111111111",
+      "amount": "25000000"
+    }
+  ]
+}
