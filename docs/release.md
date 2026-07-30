@@ -66,6 +66,14 @@ export.
 - Versioned, ML-ready Parquet export
 - Exact Decimal128 financial feature export
 
+### Investigation reporting
+
+- Self-contained offline HTML reports for cases and incidents
+- Chronological event and invariant-failure timelines
+- Before/after state with exact balance deltas
+- Inline SVG balance and relationship visualizations
+- Structured evidence and origin presentation
+
 ## Release versions
 
 | Component | Version |
@@ -82,7 +90,7 @@ The release was prepared against:
 
 - Python 3.12
 - PostgreSQL 17 via Docker Compose
-- 79 passing unit and PostgreSQL integration tests
+- 83 passing unit and PostgreSQL integration tests
 - Ruff lint and format checks
 - Alembic model-drift and migration-head checks
 

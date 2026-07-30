@@ -102,6 +102,28 @@ provenance-complete research definition containing an expected outcome and order
 Replaying it through the same pipeline verifies that Sentinel reproduces the expected financial
 failure—or correctly produces no false positive for a control case.
 
+## Investigations
+
+Stored evidence is useful only when a human can understand the sequence and conclusion.
+Sentinel therefore separates three responsibilities:
+
+1. The **data layer** preserves source records and normalizes canonical events.
+2. The **validation layer** reconstructs state, executes invariants, and creates incidents.
+3. The **investigation layer** presents the existing timeline, state changes, invariant
+   reasoning, and evidence without changing detection behavior.
+
+The investigation layer generates static HTML. It does not query an API after generation and
+does not contain executable JavaScript or external assets. Inline SVG provides two focused
+views:
+
+- a balance-delta chart answering which entities gained or lost value;
+- a relationship graph connecting sources, assets, destinations, and findings.
+
+For Ethereum-derived events, the visible timeline follows block number, transaction index,
+and log index. Non-chain events use their occurrence time. `FAIL` and
+`INSUFFICIENT_EVIDENCE` remain distinct so a report never presents incomplete analysis as a
+successful proof.
+
 ## Why blockchain is a source, not the goal
 
 Ethereum is useful because it provides:
@@ -131,4 +153,3 @@ pipeline.
 - [Ethereum ingestion](diagrams/ethereum.md)
 - [Incident research flow](diagrams/incident-flow.md)
 - [Detailed architecture](architecture.md)
-

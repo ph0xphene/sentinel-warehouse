@@ -687,3 +687,50 @@ These guarantees are intentionally bounded. `insufficient_evidence` is not a cle
 health; partial ranges do not prove global account solvency, unknown token metadata is not
 inferred, and the current authority registry is a static checker configuration rather than
 on-chain role discovery.
+
+## Milestone 12 investigation and visualization
+
+Sentinel now has three explicit layers:
+
+```text
+Data layer
+  raw evidence -> normalization -> canonical events
+                              |
+                              v
+Validation layer
+  state reconstruction -> invariants -> incidents/evidence
+                                      |
+                                      v
+Investigation layer
+  timeline -> state delta -> relationship graph -> static HTML
+```
+
+`sentinel.reporting` is a read-only consumer of the existing case, event, invariant,
+incident, and evidence models. Reporting code does not live in ingestion or validation and
+does not add a database schema.
+
+### Report assembly
+
+`sentinel case report` resolves and replays a research case through the existing idempotent
+pipeline, then reads the resulting batch namespace. The report includes:
+
+- case, origin, terminal status, protocol, chain, and generation time;
+- a deterministic template-based executive summary;
+- source events ordered by occurrence time, or by block/transaction/log for chain events;
+- balance snapshots presented as before, after, and exact Decimal delta;
+- every invariant result, including explicit insufficient-evidence outcomes;
+- incident evidence, related identities, transaction hashes when available, and provenance;
+- an inline SVG balance chart and deterministic relationship graph.
+
+`sentinel incident report` uses the same renderer for a previously detected incident.
+Case-backed incidents reuse the case fixture for timeline and state context; other incidents
+use canonical events already associated with the batch.
+
+### Offline boundary
+
+Generated artifacts contain inline CSS and SVG only. There are no scripts, CDN links, fonts,
+API calls, or runtime database queries. Once written, the HTML file can be copied, archived,
+or reviewed independently of Sentinel and PostgreSQL.
+
+The visualizations are deliberately explanatory rather than interactive. They do not provide
+a dashboard, live monitoring, graph exploration, or vulnerability detection.

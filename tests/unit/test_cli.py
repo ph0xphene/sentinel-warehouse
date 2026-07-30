@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from sentinel.cli.main import build_parser
 from sentinel.models import IncidentOrigin
@@ -38,11 +39,16 @@ def test_cli_parses_incident_commands() -> None:
 
     list_args = build_parser().parse_args(["incident", "list", "--origin", "replay"])
     show_args = build_parser().parse_args(["incident", "show", str(incident_id)])
+    report_args = build_parser().parse_args(
+        ["incident", "report", str(incident_id), "--output", "reports/incident.html"]
+    )
 
     assert list_args.incident_command == "list"
     assert list_args.origin is IncidentOrigin.REPLAY
     assert show_args.incident_command == "show"
     assert show_args.incident_id == incident_id
+    assert report_args.incident_command == "report"
+    assert report_args.output == Path("reports/incident.html")
 
 
 def test_cli_parses_ethereum_ingestion() -> None:
@@ -64,12 +70,17 @@ def test_cli_parses_case_commands() -> None:
         ["case", "import", "data/incidents/euler_style_accounting_failure.json"]
     )
     feature_args = build_parser().parse_args(["case", "features", str(case_id)])
+    report_args = build_parser().parse_args(
+        ["case", "report", "euler-style", "--output", "reports/euler.html"]
+    )
 
     assert list_args.case_command == "list"
     assert show_args.case_id == case_id
     assert replay_args.case_id == case_id
     assert import_args.path.name == "euler_style_accounting_failure.json"
     assert feature_args.case_id == case_id
+    assert report_args.case_selector == "euler-style"
+    assert report_args.output == Path("reports/euler.html")
 
 
 def test_cli_parses_dataset_export() -> None:

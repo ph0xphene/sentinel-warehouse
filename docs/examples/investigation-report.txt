@@ -1,0 +1,29 @@
+Static investigation report example
+===================================
+
+$ uv run sentinel case import data/incidents/euler_style_accounting_failure.json
+Imported case: 2ea83b7e-ae7d-4cd5-83db-096f828b8a01
+Name:          Euler-style accounting failure
+Pattern:       Unbacked balance creation
+Taxonomy:      Financial state manipulation / Unauthorized supply change
+Attack steps:  3
+
+$ uv run sentinel case report euler-style --output reports/euler.html
+Generated: /absolute/path/to/reports/euler.html
+Case:      2ea83b7e-ae7d-4cd5-83db-096f828b8a01
+Origin:    REPLAY
+Status:    FAILED
+Events:    1
+Evidence:  1
+
+The resulting file is a self-contained HTML investigation artifact. It includes the ordered
+accounting event, before/after balances, the +100 USD unexplained delta, the failed balance
+conservation result, structured replay evidence, and inline SVG visualizations.
+
+$ uv run sentinel incident report <incident-id> --output reports/incident.html
+Generated: /absolute/path/to/reports/incident.html
+Incident:  <incident-id>
+Origin:    REPLAY
+Status:    OPEN
+Events:    1
+Evidence:  1

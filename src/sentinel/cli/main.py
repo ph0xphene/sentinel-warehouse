@@ -13,11 +13,12 @@ from sentinel.cli.cases import (
     import_case,
     list_cases,
     replay_case,
+    report_case,
     show_case,
     show_case_features,
 )
 from sentinel.cli.datasets import export_dataset, validate_dataset
-from sentinel.cli.incidents import list_incidents, show_incident
+from sentinel.cli.incidents import list_incidents, report_incident, show_incident
 from sentinel.config import get_settings
 from sentinel.database import create_database_engine
 from sentinel.ingestion import (
@@ -78,6 +79,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     incident_show = incident_commands.add_parser("show", help="Show incident evidence")
     incident_show.add_argument("incident_id", type=uuid.UUID)
+    incident_report = incident_commands.add_parser(
+        "report",
+        help="Generate a static offline incident report",
+    )
+    incident_report.add_argument("incident_id", type=uuid.UUID)
+    incident_report.add_argument("--output", type=Path)
 
     case = commands.add_parser("case", help="Research reproducible security incident cases")
     case_commands = case.add_subparsers(dest="case_command", required=True)
@@ -94,6 +101,12 @@ def build_parser() -> argparse.ArgumentParser:
         "features", help="Replay a case and extract deterministic features"
     )
     case_features.add_argument("case_id", type=uuid.UUID)
+    case_report = case_commands.add_parser(
+        "report",
+        help="Replay a case and generate a static offline investigation report",
+    )
+    case_report.add_argument("case_selector")
+    case_report.add_argument("--output", type=Path)
 
     dataset = commands.add_parser("dataset", help="Build security research datasets")
     dataset_commands = dataset.add_subparsers(dest="dataset_command", required=True)
@@ -151,7 +164,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "incident":
         if args.incident_command == "list":
             return list_incidents(origin=args.origin)
-        return show_incident(args.incident_id)
+        if args.incident_command == "show":
+            return show_incident(args.incident_id)
+        return report_incident(args.incident_id, args.output)
     if args.command == "case":
         if args.case_command == "list":
             return list_cases()
@@ -161,6 +176,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return replay_case(args.case_id)
         if args.case_command == "features":
             return show_case_features(args.case_id)
+        if args.case_command == "report":
+            return report_case(args.case_selector, args.output)
         return import_case(args.path)
     if args.command == "dataset":
         if args.dataset_command == "validate":

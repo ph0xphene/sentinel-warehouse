@@ -1,11 +1,13 @@
 import json
 import uuid
+from pathlib import Path
 
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from sentinel.database import create_database_engine
 from sentinel.models import Incident, IncidentEvidence, IncidentOrigin
+from sentinel.reporting import generate_incident_report
 
 
 def list_incidents(
@@ -73,4 +75,23 @@ def show_incident(incident_id: uuid.UUID, engine: Engine | None = None) -> int:
             ],
         }
     print(json.dumps(values, indent=2, sort_keys=True))
+    return 0
+
+
+def report_incident(
+    incident_id: uuid.UUID,
+    output: Path | None = None,
+    engine: Engine | None = None,
+) -> int:
+    try:
+        summary = generate_incident_report(incident_id, output, engine)
+    except ValueError as error:
+        print(str(error))
+        return 1
+    print(f"Generated: {summary.output}")
+    print(f"Incident:  {summary.subject_id}")
+    print(f"Origin:    {summary.origin.value}")
+    print(f"Status:    {summary.status}")
+    print(f"Events:    {summary.events}")
+    print(f"Evidence:  {summary.evidence_records}")
     return 0

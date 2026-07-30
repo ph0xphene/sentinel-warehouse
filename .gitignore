@@ -7,6 +7,7 @@ __pycache__/
 *.egg-info/
 .coverage
 htmlcov/
+/reports/
 data/*
 !data/.gitkeep
 !data/fixtures/

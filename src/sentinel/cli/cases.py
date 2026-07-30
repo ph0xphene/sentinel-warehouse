@@ -13,6 +13,7 @@ from sentinel.models import (
     AttackSubcategory,
     IncidentCase,
 )
+from sentinel.reporting import generate_case_report
 from sentinel.security.cases import import_incident_case, replay_incident_case
 from sentinel.security.features import extract_case_features
 
@@ -149,3 +150,22 @@ def show_case_features(case_id: uuid.UUID, engine: Engine | None = None) -> int:
     for feature in summary.features:
         print(f"{feature.name}: {feature.value}")
     return 0 if summary.replay_matched else 1
+
+
+def report_case(
+    selector: str,
+    output: Path | None = None,
+    engine: Engine | None = None,
+) -> int:
+    try:
+        summary = generate_case_report(selector, output, engine)
+    except ValueError as error:
+        print(str(error))
+        return 1
+    print(f"Generated: {summary.output}")
+    print(f"Case:      {summary.subject_id}")
+    print(f"Origin:    {summary.origin.value}")
+    print(f"Status:    {summary.status}")
+    print(f"Events:    {summary.events}")
+    print(f"Evidence:  {summary.evidence_records}")
+    return 0

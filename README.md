@@ -5,7 +5,7 @@ systems.**
 
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-[![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)](#quality)
+[![Tests](https://img.shields.io/badge/tests-83%20passing-brightgreen)](#quality)
 [![License](https://img.shields.io/badge/license-not%20yet%20specified-lightgrey)](#license)
 
 Sentinel Warehouse combines production-inspired data engineering with reproducible financial
@@ -105,6 +105,14 @@ See the [system architecture diagram](docs/diagrams/architecture.md) and
 - Exact `Decimal128(38,18)` financial values
 - Dataset, extractor, schema, timestamp, and Git revision metadata
 
+### Investigation Reports
+
+- Self-contained case and incident HTML reports
+- Deterministic event timelines with chain-native ordering
+- Before/after balance and delta presentation
+- Inline SVG balance and relationship visualizations
+- Invariant reasoning and structured evidence in one offline artifact
+
 ## Quick start
 
 Prerequisites:
@@ -151,6 +159,31 @@ uv run sentinel dataset export
 
 The default artifact is written to `data/exports/security_incidents.parquet`.
 
+## Investigation Reports
+
+Sentinel converts ordered events, reconstructed state, invariant outcomes, and evidence into a
+reproducible report that a security engineer or reviewer can open without a database or network
+connection. Reports use deterministic templates and inline SVG; they contain no JavaScript,
+CDN assets, frontend framework, or external runtime dependency.
+
+Generate a case report by UUID, exact name, or an unambiguous name prefix:
+
+```bash
+uv run sentinel case report euler-style \
+  --output reports/euler.html
+```
+
+Generate a report for an existing incident:
+
+```bash
+uv run sentinel incident report <incident-id> \
+  --output reports/incident.html
+```
+
+Each report contains an executive summary, chronological timeline, before/after state and
+balance deltas, an event relationship graph, invariant outcomes, evidence payloads, hashes
+when available, origin, and case/incident identity.
+
 ## Investigation workflow
 
 Invariant failures are not discarded as pipeline errors. Sentinel stores the failed invariant,
@@ -167,6 +200,7 @@ uv run sentinel incident show <incident-id>
 Representative terminal sessions:
 
 - [Incident investigation](docs/examples/incident-investigation.txt)
+- [Static investigation report](docs/examples/investigation-report.txt)
 - [Dataset validation and export](docs/examples/dataset-validation.txt)
 - [Ethereum ingestion](docs/examples/ethereum-ingestion.txt)
 
@@ -211,6 +245,7 @@ src/sentinel/
   protocols/    Protocol plugin interface and implementations
   quality/      Configurable source-data checks
   security/     Invariants, incidents, replay, features, and export
+  reporting/    Static HTML, timeline, chart, and SVG report generation
   cli/          Operational command-line interface
 
 migrations/     Alembic migration history
@@ -243,7 +278,7 @@ SENTINEL_TEST_DATABASE_URL=postgresql+psycopg://sentinel:sentinel@localhost:5432
   uv run pytest -m integration
 ```
 
-The v0.1.0 release baseline is 79 passing tests. Tests use an injectable Ethereum RPC client;
+The v0.1.0 release baseline is 83 passing tests. Tests use an injectable Ethereum RPC client;
 they do not contact a public network.
 
 ## Project scope
