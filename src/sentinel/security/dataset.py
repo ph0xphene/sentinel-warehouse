@@ -1,7 +1,9 @@
 import json
+import subprocess
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 import pyarrow as pa
@@ -25,8 +27,9 @@ from sentinel.security.features import (
     extract_case_features,
 )
 
-DATASET_VERSION = "1.0.0"
-SCHEMA_VERSION = "2"
+DATASET_VERSION = "1.1.0"
+SCHEMA_VERSION = "3"
+DECIMAL_SCALE = Decimal("0.000000000000000001")
 
 
 class DatasetQualityError(RuntimeError):
@@ -53,6 +56,7 @@ class DatasetExportSummary:
     extraction_version: str
     schema_version: str
     generated_at: str
+    git_revision: str
 
 
 DATASET_SCHEMA = pa.schema(
@@ -80,7 +84,7 @@ DATASET_SCHEMA = pa.schema(
         pa.field("attack_subcategory_description", pa.string(), nullable=False),
         pa.field("expected_status", pa.string(), nullable=False),
         pa.field("replay_matched", pa.bool_(), nullable=False),
-        *[pa.field(name, pa.float64(), nullable=False) for name in NUMERIC_FEATURES],
+        *[pa.field(name, pa.decimal128(38, 18), nullable=False) for name in NUMERIC_FEATURES],
         *[pa.field(name, pa.string(), nullable=False) for name in CATEGORICAL_FEATURES],
     ]
 )
@@ -178,6 +182,22 @@ def _encoded_list(values: list[str] | None) -> str:
     return json.dumps(sorted(values or []), separators=(",", ":"))
 
 
+def _git_revision() -> str:
+    project_root = Path(__file__).resolve().parents[3]
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
 def export_incident_dataset(
     output: Path,
     engine: Engine | None = None,
@@ -247,19 +267,29 @@ def export_incident_dataset(
                     "attack_subcategory_description": subcategory.description,
                     "expected_status": expected_status,
                     "replay_matched": validation.extractions[case.case_id].replay_matched,
-                    **{name: float(feature_values[name]) for name in NUMERIC_FEATURES},
+                    **{
+                        name: (
+                            feature_values[name]
+                            if isinstance(feature_values[name], Decimal)
+                            else Decimal(str(feature_values[name]))
+                        ).quantize(DECIMAL_SCALE)
+                        for name in NUMERIC_FEATURES
+                    },
                     **{name: str(feature_values[name]) for name in CATEGORICAL_FEATURES},
                 }
             )
 
     generated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    git_revision = _git_revision()
     schema = DATASET_SCHEMA.with_metadata(
         {
             b"dataset": b"sentinel_security_incidents",
             b"dataset_version": DATASET_VERSION.encode(),
             b"extraction_version": EXTRACTION_VERSION.encode(),
+            b"extractor_version": EXTRACTION_VERSION.encode(),
             b"schema_version": SCHEMA_VERSION.encode(),
             b"generated_at": generated_at.encode(),
+            b"git_revision": git_revision.encode(),
         }
     )
     table = pa.Table.from_pylist(dataset_rows, schema=schema)
@@ -280,4 +310,5 @@ def export_incident_dataset(
         extraction_version=EXTRACTION_VERSION,
         schema_version=SCHEMA_VERSION,
         generated_at=generated_at,
+        git_revision=git_revision,
     )

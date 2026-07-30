@@ -19,6 +19,7 @@ from sentinel.models import (
 )
 from sentinel.protocols import ProtocolNormalization, detect_protocol
 from sentinel.quality import QualityConfig
+from sentinel.security import EvaluationScope, InvariantContext
 
 SOURCE_SYSTEM = "ethereum"
 
@@ -150,6 +151,11 @@ def _raw_stager(source: dict[str, Any], protocol: ProtocolNormalization):
                 tx_hash=str(transaction["tx_hash"]).lower(),
                 chain_id=transaction.get("chain_id", source.get("chain_id")),
                 block_number=int(transaction["block_number"]),
+                transaction_index=(
+                    int(transaction["transaction_index"])
+                    if transaction.get("transaction_index") is not None
+                    else None
+                ),
                 block_hash=(
                     str(transaction["block_hash"]).lower()
                     if transaction.get("block_hash") is not None
@@ -178,6 +184,11 @@ def _raw_stager(source: dict[str, Any], protocol: ProtocolNormalization):
                 log_index=int(transfer["log_index"]),
                 chain_id=transfer.get("chain_id", source.get("chain_id")),
                 block_number=transfer.get("block_number"),
+                transaction_index=(
+                    int(transfer["transaction_index"])
+                    if transfer.get("transaction_index") is not None
+                    else None
+                ),
                 block_hash=(
                     str(transfer["block_hash"]).lower()
                     if transfer.get("block_hash") is not None
@@ -236,4 +247,14 @@ def ingest_ethereum_fixture(
         stage_financial_records=False,
         protocol_plugin=plugin,
         protocol_source=source,
+        invariant_context=InvariantContext(
+            source_system=str(normalized["source_name"]),
+            chain_id=(int(source["chain_id"]) if source.get("chain_id") is not None else None),
+            block_range=None,
+            evaluation_scope=(
+                EvaluationScope.PARTIAL_HISTORY
+                if plugin.name == "uniswap_v2"
+                else EvaluationScope.FULL_STATE
+            ),
+        ),
     )

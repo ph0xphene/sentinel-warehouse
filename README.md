@@ -5,7 +5,7 @@ systems.**
 
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-[![Tests](https://img.shields.io/badge/tests-68%20passing-brightgreen)](#quality)
+[![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)](#quality)
 [![License](https://img.shields.io/badge/license-not%20yet%20specified-lightgrey)](#license)
 
 Sentinel Warehouse combines production-inspired data engineering with reproducible financial
@@ -48,7 +48,7 @@ State reconstruction
       v
 Invariant validation
       |
-      +---- valid ----> trusted state
+      +---- accepted --> reconstructed state + explicit evidence status
       |
       +---- invalid --> incident + evidence --> research dataset
 ```
@@ -77,8 +77,11 @@ See the [system architecture diagram](docs/diagrams/architecture.md) and
 ### Security
 
 - Global and protocol-specific invariant engine
+- Checker-owned validation context and supply authority registry
+- Explicit `PASSED`, `FAILED`, and `INSUFFICIENT_EVIDENCE` outcomes
 - Automatic incident detection
 - Structured evidence preservation
+- Isolated `LIVE`, `REPLAY`, and `FIXTURE` findings
 - Retry-aware incident resolution
 - Reproducible historical incident replay
 
@@ -87,6 +90,8 @@ See the [system architecture diagram](docs/diagrams/architecture.md) and
 - Bounded Ethereum JSON-RPC ingestion
 - Finality-aware block ranges and durable chain checkpoints
 - Canonical-chain tracking and reorganization recovery
+- Chain-native `(block, transaction, log)` event ordering
+- Explicit supported, partially supported, and unsupported analysis status
 - Protocol plugin interface: `detect()`, `normalize()`, and `invariants()`
 - ERC-20 transfers and Uniswap V2 `Mint`, `Burn`, `Swap`, and `Sync`
 
@@ -97,7 +102,8 @@ See the [system architecture diagram](docs/diagrams/architecture.md) and
 - Deterministic numeric, categorical, and sequence-aware features
 - Pre-export corpus validation
 - Zstandard-compressed, ML-ready Parquet export
-- Dataset, extraction, and schema version metadata
+- Exact `Decimal128(38,18)` financial values
+- Dataset, extractor, schema, timestamp, and Git revision metadata
 
 ## Quick start
 
@@ -152,7 +158,9 @@ creates or updates an incident, and attaches structured evidence:
 
 ```bash
 uv run sentinel ingest fixture data/fixtures/event_create_money.json
-uv run sentinel incident list
+uv run sentinel incident list --origin FIXTURE
+uv run sentinel incident list --origin LIVE
+uv run sentinel incident list --origin REPLAY
 uv run sentinel incident show <incident-id>
 ```
 
@@ -235,7 +243,7 @@ SENTINEL_TEST_DATABASE_URL=postgresql+psycopg://sentinel:sentinel@localhost:5432
   uv run pytest -m integration
 ```
 
-The v0.1.0 release baseline is 68 passing tests. Tests use an injectable Ethereum RPC client;
+The v0.1.0 release baseline is 79 passing tests. Tests use an injectable Ethereum RPC client;
 they do not contact a public network.
 
 ## Project scope
@@ -256,4 +264,3 @@ introduced.
 
 A license has not yet been selected. The repository should not be treated as granting reuse,
 modification, or redistribution rights until a `LICENSE` file is added.
-

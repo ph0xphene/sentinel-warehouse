@@ -6,8 +6,9 @@ from sentinel.ethereum.abi import decode_topic_address, decode_words
 from sentinel.protocols.base import ProtocolNormalization, ProtocolRawRecord
 from sentinel.security import (
     CanonicalEvent,
+    InvariantContext,
+    InvariantExecutionResult,
     InvariantOutcome,
-    reconstruct_balances,
 )
 
 MINT_TOPIC = "0x4c209b5fc8ad50758f13e2e1088ba56a560dff690a1c6fef26394f4c03821c4f"
@@ -37,8 +38,6 @@ def _rpc_source(source: Mapping[str, Any]) -> Mapping[str, Any]:
         return source
 
     contract = _address(source["contract_address"])
-    token0 = f"{contract}:token0"
-    token1 = f"{contract}:token1"
     protocol_events: list[dict[str, Any]] = []
     transactions: list[dict[str, Any]] = []
     for log in source.get("rpc_logs", []):
@@ -51,6 +50,7 @@ def _rpc_source(source: Mapping[str, Any]) -> Mapping[str, Any]:
         event: dict[str, Any] = {
             "tx_hash": str(log["transaction_hash"]).lower(),
             "log_index": int(log["log_index"]),
+            "transaction_index": int(log.get("transaction_index", 0)),
             "chain_id": int(source["chain_id"]),
             "block_number": int(log["block_number"]),
             "block_hash": str(log["block_hash"]).lower(),
@@ -91,6 +91,7 @@ def _rpc_source(source: Mapping[str, Any]) -> Mapping[str, Any]:
             {
                 "tx_hash": event["tx_hash"],
                 "block_number": event["block_number"],
+                "transaction_index": event["transaction_index"],
                 "block_hash": event["block_hash"],
                 "block_timestamp": log["block_timestamp"],
                 "success": True,
@@ -100,24 +101,100 @@ def _rpc_source(source: Mapping[str, Any]) -> Mapping[str, Any]:
     return {
         **source,
         "protocol": "uniswap_v2",
-        "pair": {"address": contract, "token0": token0, "token1": token1},
-        "tokens": [
-            {
-                "address": token0,
-                "symbol": "TOKEN0",
-                "name": f"Uniswap reserve 0 {contract[:10]}",
-                "decimals": 0,
-            },
-            {
-                "address": token1,
-                "symbol": "TOKEN1",
-                "name": f"Uniswap reserve 1 {contract[:10]}",
-                "decimals": 0,
-            },
-        ],
+        "pair": {"address": contract, "token0": None, "token1": None},
+        "tokens": [],
         "protocol_events": protocol_events,
         "transactions": transactions,
     }
+
+
+def _transaction_map(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    transactions: dict[str, dict[str, Any]] = {}
+    for position, transaction in enumerate(source.get("transactions", [])):
+        if not isinstance(transaction, Mapping):
+            continue
+        value = dict(transaction)
+        value.setdefault("transaction_index", position)
+        transactions[str(transaction["tx_hash"]).lower()] = value
+    return transactions
+
+
+def _chain_coordinates(
+    event: Mapping[str, Any],
+    transactions: Mapping[str, Mapping[str, Any]],
+) -> tuple[int, int, int]:
+    transaction = transactions[str(event["tx_hash"]).lower()]
+    return (
+        int(event.get("block_number", transaction["block_number"])),
+        int(event.get("transaction_index", transaction.get("transaction_index", 0))),
+        int(event["log_index"]),
+    )
+
+
+def _ordered_protocol_events(
+    source: Mapping[str, Any],
+    transactions: Mapping[str, Mapping[str, Any]],
+) -> tuple[Mapping[str, Any], ...]:
+    values = tuple(
+        event for event in source.get("protocol_events", []) if isinstance(event, Mapping)
+    )
+    return tuple(sorted(values, key=lambda event: _chain_coordinates(event, transactions)))
+
+
+def _opening_reserves(
+    source: Mapping[str, Any],
+    pair_address: str,
+    token0: str | None,
+    token1: str | None,
+) -> tuple[Decimal, Decimal] | None:
+    if token0 is None or token1 is None:
+        return None
+    values = {
+        (_address(balance["address"]), _address(balance["token_address"])): Decimal(
+            str(balance["amount"])
+        )
+        for balance in source.get("opening_balances", [])
+        if isinstance(balance, Mapping)
+    }
+    key0 = (pair_address, token0)
+    key1 = (pair_address, token1)
+    if key0 not in values or key1 not in values:
+        return None
+    return values[key0], values[key1]
+
+
+def _result(
+    *,
+    name: str,
+    severity: str,
+    description: str,
+    affected: list[dict[str, object]],
+    insufficient: list[dict[str, object]],
+) -> InvariantOutcome:
+    if affected:
+        return InvariantOutcome(
+            name=name,
+            severity=severity,
+            description=description,
+            affected_records=tuple(affected),
+            protocol_name="uniswap_v2",
+        )
+    if insufficient:
+        return InvariantOutcome(
+            name=name,
+            severity=severity,
+            description=description,
+            affected_records=tuple(insufficient),
+            protocol_name="uniswap_v2",
+            result=InvariantExecutionResult.INSUFFICIENT_EVIDENCE,
+        )
+    return InvariantOutcome(
+        name=name,
+        severity=severity,
+        description=description,
+        affected_records=(),
+        protocol_name="uniswap_v2",
+    )
 
 
 class UniswapV2Plugin:
@@ -137,69 +214,80 @@ class UniswapV2Plugin:
         source_values = _rpc_source(source)
         pair = source_values["pair"]
         pair_address = _address(pair["address"])
-        token0 = _address(pair["token0"])
-        token1 = _address(pair["token1"])
+        token0 = _address(pair["token0"]) if pair.get("token0") is not None else None
+        token1 = _address(pair["token1"]) if pair.get("token1") is not None else None
         tokens = {
             _address(token["address"]): token
             for token in source_values.get("tokens", [])
             if isinstance(token, Mapping)
         }
-        decimals0 = int(tokens[token0]["decimals"])
-        decimals1 = int(tokens[token1]["decimals"])
-        transactions = {
-            str(transaction["tx_hash"]).lower(): transaction
-            for transaction in source_values.get("transactions", [])
-            if isinstance(transaction, Mapping)
-        }
+        known_assets = token0 in tokens and token1 in tokens
+        decimals0 = int(tokens[token0]["decimals"]) if known_assets and token0 is not None else None
+        decimals1 = int(tokens[token1]["decimals"]) if known_assets and token1 is not None else None
+        transactions = _transaction_map(source_values)
+        protocol_events = _ordered_protocol_events(source_values, transactions)
         events: list[dict[str, Any]] = []
         addresses = {pair_address}
         raw_records: list[ProtocolRawRecord] = []
+        tracked_reserves = _opening_reserves(source_values, pair_address, token0, token1)
 
         def add_event(
             source_event: Mapping[str, Any],
             suffix: str,
             event_type: str,
-            token_address: str,
             amount: object,
             *,
+            asset: str | None,
             account_from: str | None = None,
             account_to: str | None = None,
-            authorized_supply_change: bool = False,
+            extra_metadata: Mapping[str, object] | None = None,
         ) -> None:
             tx_hash = str(source_event["tx_hash"]).lower()
-            log_index = int(source_event["log_index"])
+            block_number, transaction_index, log_index = _chain_coordinates(
+                source_event, transactions
+            )
+            transaction = transactions[tx_hash]
             metadata: dict[str, object] = {
                 "protocol": self.name,
                 "protocol_event": source_event["event_name"],
                 "tx_hash": tx_hash,
-                "log_index": log_index,
+                "asset_metadata_status": "known" if known_assets else "unknown",
+                **(dict(extra_metadata) if extra_metadata is not None else {}),
             }
-            if authorized_supply_change:
-                metadata["authorized_supply_change"] = True
-            for field in ("chain_id", "block_number", "block_hash"):
-                if source_event.get(field) is not None:
-                    metadata[field] = source_event[field]
-            if source.get("rpc_mode") is True:
-                metadata["state_scope"] = "partial_history"
+            if source_event.get("chain_id") is not None:
+                metadata["chain_id"] = int(source_event["chain_id"])
+            if source_event.get("block_hash") is not None:
+                metadata["block_hash"] = str(source_event["block_hash"]).lower()
             events.append(
                 {
                     "external_id": f"{tx_hash}:{log_index}:{suffix}",
                     "event_type": event_type,
-                    "occurred_at": transactions[tx_hash]["block_timestamp"],
-                    "asset_external_id": token_address,
+                    "occurred_at": transaction["block_timestamp"],
+                    "asset_external_id": asset,
                     "account_from_external_id": account_from,
                     "account_to_external_id": account_to,
                     "amount": amount,
+                    "chain_id": (
+                        int(source_event["chain_id"])
+                        if source_event.get("chain_id") is not None
+                        else None
+                    ),
+                    "block_number": block_number,
+                    "block_hash": (
+                        str(source_event["block_hash"]).lower()
+                        if source_event.get("block_hash") is not None
+                        else None
+                    ),
+                    "transaction_index": transaction_index,
+                    "log_index": log_index,
                     "metadata": metadata,
                 }
             )
 
-        for source_event in source_values.get("protocol_events", []):
-            if not isinstance(source_event, Mapping):
-                continue
+        for source_event in protocol_events:
             event_name = str(source_event["event_name"])
             tx_hash = str(source_event["tx_hash"]).lower()
-            log_index = int(source_event["log_index"])
+            _, _, log_index = _chain_coordinates(source_event, transactions)
             raw_records.append(
                 ProtocolRawRecord(
                     record_type=f"ethereum.uniswap_v2.{event_name.lower()}",
@@ -207,114 +295,84 @@ class UniswapV2Plugin:
                     payload=dict(source_event),
                 )
             )
-            sender = (
-                _address(source_event["sender"]) if source_event.get("sender") is not None else None
-            )
-            recipient = _address(source_event["to"]) if source_event.get("to") is not None else None
-            if sender is not None:
-                addresses.add(sender)
-            if recipient is not None:
-                addresses.add(recipient)
+            for address_field in ("sender", "to"):
+                if source_event.get(address_field) is not None:
+                    addresses.add(_address(source_event[address_field]))
 
-            if event_name == "Mint":
-                add_event(
-                    source_event,
-                    "mint:token0",
-                    "MINT",
-                    token0,
-                    _amount(source_event["amount0"], decimals0),
-                    account_to=pair_address,
-                    authorized_supply_change=True,
+            if event_name == "Sync":
+                current = (
+                    Decimal(str(source_event["reserve0"])),
+                    Decimal(str(source_event["reserve1"])),
                 )
-                add_event(
-                    source_event,
-                    "mint:token1",
-                    "MINT",
-                    token1,
-                    _amount(source_event["amount1"], decimals1),
-                    account_to=pair_address,
-                    authorized_supply_change=True,
-                )
-            elif event_name == "Burn":
-                add_event(
-                    source_event,
-                    "burn:token0",
-                    "BURN",
-                    token0,
-                    _amount(source_event["amount0"], decimals0),
-                    account_from=pair_address,
-                    authorized_supply_change=True,
-                )
-                add_event(
-                    source_event,
-                    "burn:token1",
-                    "BURN",
-                    token1,
-                    _amount(source_event["amount1"], decimals1),
-                    account_from=pair_address,
-                    authorized_supply_change=True,
-                )
-            elif event_name == "Swap":
-                swap_fields = (
-                    ("amount0_in", "in:token0", "DEPOSIT", token0, decimals0, sender, pair_address),
-                    ("amount1_in", "in:token1", "DEPOSIT", token1, decimals1, sender, pair_address),
-                    (
-                        "amount0_out",
-                        "out:token0",
-                        "WITHDRAWAL",
-                        token0,
-                        decimals0,
-                        pair_address,
-                        recipient,
-                    ),
-                    (
-                        "amount1_out",
-                        "out:token1",
-                        "WITHDRAWAL",
-                        token1,
-                        decimals1,
-                        pair_address,
-                        recipient,
-                    ),
-                )
-                for (
-                    field,
-                    suffix,
-                    event_type,
-                    token,
-                    decimals,
-                    account_from,
-                    account_to,
-                ) in swap_fields:
-                    amount = Decimal(str(source_event.get(field, 0)))
-                    if amount <= 0:
-                        continue
+                if (
+                    known_assets
+                    and token0 is not None
+                    and token1 is not None
+                    and decimals0 is not None
+                    and decimals1 is not None
+                ):
+                    for slot, token, decimals in (
+                        (0, token0, decimals0),
+                        (1, token1, decimals1),
+                    ):
+                        previous = tracked_reserves[slot] if tracked_reserves is not None else None
+                        delta = current[slot] - previous if previous is not None else Decimal(0)
+                        if delta > 0:
+                            add_event(
+                                source_event,
+                                f"sync:token{slot}",
+                                "DEPOSIT",
+                                _amount(delta, decimals),
+                                asset=token,
+                                account_to=pair_address,
+                                extra_metadata={"reserve": str(current[slot])},
+                            )
+                        elif delta < 0:
+                            add_event(
+                                source_event,
+                                f"sync:token{slot}",
+                                "WITHDRAWAL",
+                                _amount(abs(delta), decimals),
+                                asset=token,
+                                account_from=pair_address,
+                                extra_metadata={"reserve": str(current[slot])},
+                            )
+                        else:
+                            add_event(
+                                source_event,
+                                f"sync:token{slot}",
+                                "ADJUSTMENT",
+                                "0",
+                                asset=token,
+                                account_from=pair_address,
+                                account_to=pair_address,
+                                extra_metadata={"reserve": str(current[slot])},
+                            )
+                else:
                     add_event(
                         source_event,
-                        suffix,
-                        event_type,
-                        token,
-                        _amount(amount, decimals),
-                        account_from=account_from,
-                        account_to=account_to,
-                        authorized_supply_change=True,
+                        "sync:unknown-assets",
+                        "ADJUSTMENT",
+                        "0",
+                        asset=None,
+                        extra_metadata={
+                            "reserve0": str(current[0]),
+                            "reserve1": str(current[1]),
+                        },
                     )
-            elif event_name == "Sync":
+                tracked_reserves = current
+            elif event_name in {"Mint", "Burn", "Swap"}:
                 add_event(
                     source_event,
-                    "sync:token0",
+                    event_name.lower(),
                     "ADJUSTMENT",
-                    token0,
                     "0",
-                    account_to=pair_address,
-                )
-                add_event(
-                    source_event,
-                    "sync:token1",
-                    "ADJUSTMENT",
-                    token1,
-                    "0",
-                    account_to=pair_address,
+                    asset=None,
+                    extra_metadata={
+                        key: str(value)
+                        for key, value in source_event.items()
+                        if key.startswith("amount")
+                    },
                 )
             else:
                 raise ValueError(f"Unsupported Uniswap V2 event: {event_name}")
@@ -330,123 +388,160 @@ class UniswapV2Plugin:
         self,
         events: tuple[CanonicalEvent, ...],
         source: Mapping[str, Any],
+        context: InvariantContext,
     ) -> tuple[InvariantOutcome, ...]:
+        del events, context
         source_values = _rpc_source(source)
         pair = source_values["pair"]
         pair_address = _address(pair["address"])
-        token0 = _address(pair["token0"])
-        token1 = _address(pair["token1"])
-        tokens = {
-            _address(token["address"]): token
-            for token in source_values.get("tokens", [])
-            if isinstance(token, Mapping)
-        }
-        decimals0 = int(tokens[token0]["decimals"])
-        decimals1 = int(tokens[token1]["decimals"])
-        protocol_events = [
-            event
-            for event in source_values.get("protocol_events", [])
-            if isinstance(event, Mapping)
-        ]
-        sync_events = [event for event in protocol_events if event.get("event_name") == "Sync"]
-
+        token0 = _address(pair["token0"]) if pair.get("token0") is not None else None
+        token1 = _address(pair["token1"]) if pair.get("token1") is not None else None
+        transactions = _transaction_map(source_values)
+        protocol_events = _ordered_protocol_events(source_values, transactions)
+        baseline = _opening_reserves(source_values, pair_address, token0, token1)
+        pending_sync: tuple[Mapping[str, Any], tuple[Decimal, Decimal]] | None = None
         reserve_affected: list[dict[str, object]] = []
-        if source.get("rpc_mode") is True:
-            tracked: tuple[Decimal, Decimal] | None = None
-            for source_event in protocol_events:
-                name = source_event.get("event_name")
-                if name == "Sync":
-                    reported = (
-                        Decimal(str(source_event["reserve0"])),
-                        Decimal(str(source_event["reserve1"])),
-                    )
-                    if tracked is not None and tracked != reported:
-                        reserve_affected.append(
-                            {
-                                "external_id": (
-                                    f"{source_event['tx_hash']}:{source_event['log_index']}"
-                                ),
-                                "pair_address": pair_address,
-                                "expected_reserve0": str(tracked[0]),
-                                "actual_reserve0": str(reported[0]),
-                                "expected_reserve1": str(tracked[1]),
-                                "actual_reserve1": str(reported[1]),
-                            }
-                        )
-                    tracked = reported
-                elif tracked is not None and name in {"Mint", "Burn", "Swap"}:
-                    delta0 = Decimal(str(source_event.get("amount0", 0)))
-                    delta1 = Decimal(str(source_event.get("amount1", 0)))
-                    if name == "Burn":
-                        delta0, delta1 = -delta0, -delta1
-                    elif name == "Swap":
-                        delta0 = Decimal(str(source_event.get("amount0_in", 0))) - Decimal(
-                            str(source_event.get("amount0_out", 0))
-                        )
-                        delta1 = Decimal(str(source_event.get("amount1_in", 0))) - Decimal(
-                            str(source_event.get("amount1_out", 0))
-                        )
-                    tracked = tracked[0] + delta0, tracked[1] + delta1
-        elif sync_events:
-            latest = sync_events[-1]
-            balances = reconstruct_balances(events)
-            expected0 = Decimal(_amount(latest["reserve0"], decimals0))
-            expected1 = Decimal(_amount(latest["reserve1"], decimals1))
-            actual0 = balances.get((pair_address, token0), Decimal(0))
-            actual1 = balances.get((pair_address, token1), Decimal(0))
-            if (actual0, actual1) != (expected0, expected1):
+        reserve_insufficient: list[dict[str, object]] = []
+        liquidity_affected: list[dict[str, object]] = []
+        liquidity_insufficient: list[dict[str, object]] = []
+
+        def event_id(event: Mapping[str, Any]) -> str:
+            return f"{event['tx_hash']}:{event['log_index']}"
+
+        def settle_standalone_sync() -> None:
+            nonlocal baseline, pending_sync
+            if pending_sync is None:
+                return
+            sync_event, current = pending_sync
+            if baseline is not None and (current[0] < baseline[0] or current[1] < baseline[1]):
                 reserve_affected.append(
                     {
-                        "external_id": f"{latest['tx_hash']}:{latest['log_index']}",
+                        "external_id": event_id(sync_event),
                         "pair_address": pair_address,
-                        "expected_reserve0": str(expected0),
-                        "actual_reserve0": str(actual0),
-                        "expected_reserve1": str(expected1),
-                        "actual_reserve1": str(actual1),
+                        "reason": "standalone Sync decreased reserves without Burn or Swap",
+                        "previous_reserve0": str(baseline[0]),
+                        "previous_reserve1": str(baseline[1]),
+                        "actual_reserve0": str(current[0]),
+                        "actual_reserve1": str(current[1]),
                     }
                 )
+            baseline = current
+            pending_sync = None
 
-        liquidity_affected: list[dict[str, object]] = []
-        previous_sync: tuple[Decimal, Decimal] | None = None
-        pending_swap: Mapping[str, Any] | None = None
         for source_event in protocol_events:
-            if source_event.get("event_name") == "Swap":
-                pending_swap = source_event
-            elif source_event.get("event_name") == "Sync":
-                current = (
-                    Decimal(_amount(source_event["reserve0"], decimals0)),
-                    Decimal(_amount(source_event["reserve1"], decimals1)),
+            name = str(source_event["event_name"])
+            if name == "Sync":
+                settle_standalone_sync()
+                pending_sync = (
+                    source_event,
+                    (
+                        Decimal(str(source_event["reserve0"])),
+                        Decimal(str(source_event["reserve1"])),
+                    ),
                 )
-                if pending_swap is not None and previous_sync is not None:
-                    before_product = previous_sync[0] * previous_sync[1]
+                continue
+
+            if name not in {"Mint", "Burn", "Swap"}:
+                continue
+            if (
+                pending_sync is None
+                or str(pending_sync[0]["tx_hash"]).lower() != str(source_event["tx_hash"]).lower()
+            ):
+                settle_standalone_sync()
+                reserve_insufficient.append(
+                    {
+                        "external_id": event_id(source_event),
+                        "reason": f"{name} has no preceding Sync in the same transaction",
+                    }
+                )
+                if name == "Swap":
+                    liquidity_insufficient.append(
+                        {
+                            "external_id": event_id(source_event),
+                            "reason": "swap product cannot be evaluated without its preceding Sync",
+                        }
+                    )
+                continue
+
+            sync_event, current = pending_sync
+            if baseline is None:
+                reserve_insufficient.append(
+                    {
+                        "external_id": event_id(sync_event),
+                        "reason": "first observed Sync has no known prior reserves",
+                    }
+                )
+                if name == "Swap":
+                    liquidity_insufficient.append(
+                        {
+                            "external_id": event_id(source_event),
+                            "reason": "swap product cannot be evaluated without prior reserves",
+                        }
+                    )
+            else:
+                if name == "Mint":
+                    expected = (
+                        baseline[0] + Decimal(str(source_event["amount0"])),
+                        baseline[1] + Decimal(str(source_event["amount1"])),
+                    )
+                elif name == "Burn":
+                    expected = (
+                        baseline[0] - Decimal(str(source_event["amount0"])),
+                        baseline[1] - Decimal(str(source_event["amount1"])),
+                    )
+                else:
+                    expected = (
+                        baseline[0]
+                        + Decimal(str(source_event.get("amount0_in", 0)))
+                        - Decimal(str(source_event.get("amount0_out", 0))),
+                        baseline[1]
+                        + Decimal(str(source_event.get("amount1_in", 0)))
+                        - Decimal(str(source_event.get("amount1_out", 0))),
+                    )
+                if current != expected:
+                    reserve_affected.append(
+                        {
+                            "external_id": event_id(source_event),
+                            "sync_external_id": event_id(sync_event),
+                            "pair_address": pair_address,
+                            "expected_reserve0": str(expected[0]),
+                            "actual_reserve0": str(current[0]),
+                            "expected_reserve1": str(expected[1]),
+                            "actual_reserve1": str(current[1]),
+                        }
+                    )
+                if name == "Swap":
+                    before_product = baseline[0] * baseline[1]
                     after_product = current[0] * current[1]
                     if after_product < before_product:
                         liquidity_affected.append(
                             {
-                                "external_id": (
-                                    f"{pending_swap['tx_hash']}:{pending_swap['log_index']}"
-                                ),
+                                "external_id": event_id(source_event),
                                 "pair_address": pair_address,
                                 "product_before": str(before_product),
                                 "product_after": str(after_product),
                             }
                         )
-                    pending_swap = None
-                previous_sync = current
+            baseline = current
+            pending_sync = None
 
+        settle_standalone_sync()
         return (
-            InvariantOutcome(
+            _result(
                 name="reserve_consistency",
                 severity="critical",
-                description="Uniswap pair reserves match the latest Sync event.",
-                affected_records=tuple(reserve_affected),
-                protocol_name=self.name,
+                description=(
+                    "Uniswap action amounts reconcile the preceding Sync reserve update; "
+                    "standalone Sync increases are treated as donations."
+                ),
+                affected=reserve_affected,
+                insufficient=reserve_insufficient,
             ),
-            InvariantOutcome(
+            _result(
                 name="liquidity_conservation",
                 severity="high",
                 description="Uniswap swap reserve product does not decrease.",
-                affected_records=tuple(liquidity_affected),
-                protocol_name=self.name,
+                affected=liquidity_affected,
+                insufficient=liquidity_insufficient,
             ),
         )

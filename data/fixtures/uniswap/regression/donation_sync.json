@@ -1,0 +1,31 @@
+{
+  "source_name": "regression:uniswap-v2:donation-sync",
+  "protocol": "uniswap_v2",
+  "chain_id": 1,
+  "checkpoint": "20000003",
+  "checkpoint_timestamp": "2026-02-01T00:03:00Z",
+  "pair": {
+    "address": "0x9999999999999999999999999999999999999999",
+    "token0": "0x1111111111111111111111111111111111111111",
+    "token1": "0x2222222222222222222222222222222222222222"
+  },
+  "tokens": [
+    {"address": "0x1111111111111111111111111111111111111111", "symbol": "TK0", "name": "Token Zero", "decimals": 0},
+    {"address": "0x2222222222222222222222222222222222222222", "symbol": "TK1", "name": "Token One", "decimals": 0}
+  ],
+  "opening_balances": [
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x1111111111111111111111111111111111111111", "amount": "1000"},
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x2222222222222222222222222222222222222222", "amount": "1000"}
+  ],
+  "transactions": [
+    {"tx_hash": "0x0404040404040404040404040404040404040404040404040404040404040404", "block_number": 20000003, "transaction_index": 1, "block_timestamp": "2026-02-01T00:03:00Z", "from_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "to_address": "0x9999999999999999999999999999999999999999", "success": true, "metadata": {}}
+  ],
+  "transfers": [],
+  "protocol_events": [
+    {"event_name": "Sync", "tx_hash": "0x0404040404040404040404040404040404040404040404040404040404040404", "log_index": 1, "reserve0": "1050", "reserve1": "1000"}
+  ],
+  "balances": [
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x1111111111111111111111111111111111111111", "amount": "1050"},
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x2222222222222222222222222222222222222222", "amount": "1000"}
+  ]
+}

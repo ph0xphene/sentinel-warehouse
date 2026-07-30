@@ -10,9 +10,9 @@ from sentinel.database import create_database_engine, session_scope
 from sentinel.ingestion.events import build_candidate_events
 from sentinel.models import AttackFlow, IncidentCase, IncidentFeature
 from sentinel.security.cases import replay_incident_case
-from sentinel.security.invariants import CanonicalEvent
+from sentinel.security.invariants import CanonicalEvent, canonical_event_order
 
-EXTRACTION_VERSION = "2.0.0"
+EXTRACTION_VERSION = "3.0.0"
 NUMERIC_FEATURES = (
     "number_of_events",
     "number_of_accounts",
@@ -126,7 +126,7 @@ def _feature_values(
                 for event in events
                 if event.metadata.get("generated_from") != "opening_balance"
             ),
-            key=lambda event: (event.occurred_at, event.external_id),
+            key=canonical_event_order,
         )
     )
     explicit_event_count = sum(

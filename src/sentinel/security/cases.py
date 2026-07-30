@@ -19,6 +19,7 @@ from sentinel.models import (
     Incident,
     IncidentCase,
     IncidentFeature,
+    IncidentOrigin,
 )
 
 CASE_NAMESPACE = uuid.UUID("406378aa-2812-4f11-84f7-6c9dcda47b81")
@@ -344,13 +345,13 @@ def import_incident_case(
 def _link_attack_flow_events(
     session: Session,
     case: IncidentCase,
-    source_name: str,
+    batch_id: uuid.UUID,
 ) -> None:
     event_ids = {
         event.external_id: event.event_id
         for event in session.scalars(
             select(FinancialEvent).where(
-                FinancialEvent.source_system == source_name,
+                FinancialEvent.batch_id == batch_id,
                 FinancialEvent.canonical.is_(True),
             )
         )
@@ -380,17 +381,27 @@ def replay_incident_case(
     fixture = _mapping(replay.get("fixture"), "replay.fixture")
     expected = _mapping(replay.get("expected"), "replay.expected")
     source_content = json.dumps(fixture, sort_keys=True, separators=(",", ":")).encode()
-    pipeline = ingest_fixture_payload(fixture, source_content, engine)
+    pipeline = ingest_fixture_payload(
+        fixture,
+        source_content,
+        engine,
+        origin=IncidentOrigin.REPLAY,
+        case_id=case_id,
+    )
 
     with session_scope(engine) as session:
         case = session.get(IncidentCase, case_id)
         if case is None:
             raise RuntimeError(f"Incident case {case_id} disappeared during replay")
-        _link_attack_flow_events(session, case, str(fixture["source_name"]))
+        _link_attack_flow_events(session, case, pipeline.batch_id)
         incidents = tuple(
             session.execute(
                 select(Incident.incident_id, Incident.incident_type)
-                .where(Incident.batch_id == pipeline.batch_id)
+                .where(
+                    Incident.batch_id == pipeline.batch_id,
+                    Incident.origin == IncidentOrigin.REPLAY,
+                    Incident.case_id == case_id,
+                )
                 .order_by(Incident.incident_type, Incident.incident_id)
             ).all()
         )
@@ -398,7 +409,7 @@ def replay_incident_case(
     expected_status = str(expected["status"])
     expected_invariants = frozenset(str(value) for value in expected.get("invariants", []))
     actual_invariants = frozenset(
-        outcome.name for outcome in pipeline.invariant_results if not outcome.passed
+        outcome.name for outcome in pipeline.invariant_results if outcome.failed
     )
     expected_incidents = frozenset(str(value) for value in expected.get("incidents", []))
     actual_incidents = frozenset(incident.incident_type for incident in incidents)

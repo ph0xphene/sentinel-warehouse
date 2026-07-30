@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import func, select
 
 from sentinel.cli.cases import list_cases, replay_case, show_case
+from sentinel.cli.incidents import list_incidents
 from sentinel.models import (
     AttackCategory,
     AttackFlow,
@@ -11,6 +12,7 @@ from sentinel.models import (
     FinancialEvent,
     Incident,
     IncidentCase,
+    IncidentOrigin,
     IngestionStatus,
 )
 from sentinel.security.cases import import_incident_case, replay_incident_case
@@ -80,9 +82,13 @@ def test_case_replay_creates_and_matches_expected_incident(clean_engine) -> None
 
     with clean_engine.connect() as connection:
         incident = connection.execute(
-            select(Incident.incident_id, Incident.incident_type, Incident.severity).where(
-                Incident.batch_id == replay.pipeline.batch_id
-            )
+            select(
+                Incident.incident_id,
+                Incident.incident_type,
+                Incident.severity,
+                Incident.origin,
+                Incident.case_id,
+            ).where(Incident.batch_id == replay.pipeline.batch_id)
         ).one()
         event_count = connection.scalar(select(func.count()).select_from(FinancialEvent))
 
@@ -93,6 +99,8 @@ def test_case_replay_creates_and_matches_expected_incident(clean_engine) -> None
     assert replay.matched
     assert incident.incident_type == "balance_conservation"
     assert incident.severity == "critical"
+    assert incident.origin is IncidentOrigin.REPLAY
+    assert incident.case_id == imported.case_id
     assert event_count == 0
 
 
@@ -135,3 +143,16 @@ def test_case_cli_lists_shows_and_replays_research_case(clean_engine, capsys) ->
     replay_output = capsys.readouterr().out
     assert "Outcome matched:      True" in replay_output
     assert "balance_conservation" in replay_output
+
+
+def test_replay_incident_is_excluded_from_live_incident_list(clean_engine, capsys) -> None:
+    imported = import_incident_case(ATTACK_CASE, clean_engine)
+    replay = replay_incident_case(imported.case_id, clean_engine)
+
+    assert list_incidents(clean_engine, origin=IncidentOrigin.LIVE) == 0
+    assert capsys.readouterr().out == "No incidents found.\n"
+
+    assert list_incidents(clean_engine, origin=IncidentOrigin.REPLAY) == 0
+    replay_output = capsys.readouterr().out
+    assert str(replay.incident_ids[0]) in replay_output
+    assert "REPLAY" in replay_output

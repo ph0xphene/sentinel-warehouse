@@ -4,7 +4,7 @@ from typing import Any
 
 from sentinel.ethereum.abi import decode_topic_address, decode_words
 from sentinel.protocols.base import ProtocolNormalization
-from sentinel.security import CanonicalEvent, InvariantOutcome
+from sentinel.security import CanonicalEvent, InvariantContext, InvariantOutcome
 
 TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
@@ -72,18 +72,10 @@ class ERC20TransferPlugin:
                 "amount": decode_words(log.get("data", "0x"), 1)[0],
                 "chain_id": int(source["chain_id"]),
                 "block_number": int(log["block_number"]),
+                "transaction_index": int(log.get("transaction_index", 0)),
                 "block_hash": str(log["block_hash"]).lower(),
             }
             transfers.append(transfer)
-            tokens.setdefault(
-                token_address,
-                {
-                    "address": token_address,
-                    "symbol": "TOKEN",
-                    "name": f"ERC-20 {token_address[:10]}",
-                    "decimals": 0,
-                },
-            )
             transactions.setdefault(
                 tx_hash,
                 {
@@ -91,6 +83,7 @@ class ERC20TransferPlugin:
                     "block_number": int(log["block_number"]),
                     "block_hash": str(log["block_hash"]).lower(),
                     "block_timestamp": log["block_timestamp"],
+                    "transaction_index": int(log.get("transaction_index", 0)),
                     "success": True,
                 },
             )
@@ -118,8 +111,9 @@ class ERC20TransferPlugin:
                 metadata["chain_id"] = int(transfer["chain_id"])
             if transfer.get("block_hash") is not None:
                 metadata["block_hash"] = str(transfer["block_hash"]).lower()
-            if source.get("rpc_mode") is True:
-                metadata["state_scope"] = "partial_history"
+            token = tokens.get(token_address)
+            decimals = int(token["decimals"]) if token is not None else None
+            metadata["asset_metadata_status"] = "known" if token is not None else "unknown"
             events.append(
                 {
                     "external_id": f"{tx_hash}:{log_index}",
@@ -128,10 +122,27 @@ class ERC20TransferPlugin:
                     "asset_external_id": token_address,
                     "account_from_external_id": from_address,
                     "account_to_external_id": to_address,
-                    "amount": _amount(
-                        transfer["amount"],
-                        int(tokens[token_address]["decimals"]),
+                    "amount": (
+                        _amount(transfer["amount"], decimals)
+                        if decimals is not None
+                        else format(Decimal(str(transfer["amount"])), "f")
                     ),
+                    "chain_id": (
+                        int(transfer["chain_id"]) if transfer.get("chain_id") is not None else None
+                    ),
+                    "block_number": int(transaction["block_number"]),
+                    "block_hash": (
+                        str(transfer["block_hash"]).lower()
+                        if transfer.get("block_hash") is not None
+                        else None
+                    ),
+                    "transaction_index": int(
+                        transfer.get(
+                            "transaction_index",
+                            transaction.get("transaction_index", 0),
+                        )
+                    ),
+                    "log_index": log_index,
                     "metadata": metadata,
                 }
             )
@@ -148,5 +159,6 @@ class ERC20TransferPlugin:
         self,
         events: tuple[CanonicalEvent, ...],
         source: Mapping[str, Any],
+        context: InvariantContext,
     ) -> tuple[InvariantOutcome, ...]:
         return ()

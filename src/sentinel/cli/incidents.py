@@ -5,25 +5,33 @@ from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from sentinel.database import create_database_engine
-from sentinel.models import Incident, IncidentEvidence
+from sentinel.models import Incident, IncidentEvidence, IncidentOrigin
 
 
-def list_incidents(engine: Engine | None = None) -> int:
+def list_incidents(
+    engine: Engine | None = None,
+    *,
+    origin: IncidentOrigin | None = None,
+) -> int:
     engine = engine or create_database_engine()
     with Session(engine) as session:
+        statement = select(Incident)
+        if origin is not None:
+            statement = statement.where(Incident.origin == origin)
         incidents = tuple(
-            session.scalars(
-                select(Incident).order_by(Incident.detected_at.desc(), Incident.incident_id)
-            )
+            session.scalars(statement.order_by(Incident.detected_at.desc(), Incident.incident_id))
         )
 
     if not incidents:
         print("No incidents found.")
         return 0
-    print("INCIDENT_ID                           STATUS         SEVERITY  PROTOCOL      TYPE")
+    print(
+        "INCIDENT_ID                           ORIGIN   STATUS         SEVERITY  PROTOCOL      TYPE"
+    )
     for incident in incidents:
         print(
-            f"{incident.incident_id}  {incident.status.value:<13}  "
+            f"{incident.incident_id}  {incident.origin.value:<7}  "
+            f"{incident.status.value:<13}  "
             f"{incident.severity:<8}  {(incident.protocol_name or '-'):<12}  "
             f"{incident.incident_type}"
         )
@@ -48,6 +56,8 @@ def show_incident(incident_id: uuid.UUID, engine: Engine | None = None) -> int:
             "incident_id": str(incident.incident_id),
             "incident_type": incident.incident_type,
             "protocol_name": incident.protocol_name,
+            "origin": incident.origin.value,
+            "case_id": str(incident.case_id) if incident.case_id is not None else None,
             "severity": incident.severity,
             "status": incident.status.value,
             "detected_at": incident.detected_at.isoformat(),

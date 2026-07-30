@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from sentinel.models.base import Base
+from sentinel.models.enums import AnalysisStatus, IncidentOrigin
 
 
 class IngestionStatus(enum.StrEnum):
@@ -59,6 +60,31 @@ class IngestionBatch(Base):
     rows_loaded: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     checksum: Mapped[str | None] = mapped_column(Text)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    analysis_status: Mapped[AnalysisStatus] = mapped_column(
+        Enum(
+            AnalysisStatus,
+            name="analysis_status",
+            schema="metadata",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
+        default=AnalysisStatus.SUPPORTED,
+    )
+    origin: Mapped[IncidentOrigin] = mapped_column(
+        Enum(
+            IncidentOrigin,
+            name="incident_origin",
+            schema="security",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
+        default=IncidentOrigin.FIXTURE,
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("security.incident_cases.case_id"),
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

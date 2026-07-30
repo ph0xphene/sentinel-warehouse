@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from sentinel.models import Incident, IncidentEvidence, IncidentStatus
+from sentinel.models import Incident, IncidentEvidence, IncidentOrigin, IncidentStatus
 from sentinel.security.invariants import InvariantOutcome
 
 
@@ -21,16 +21,20 @@ def record_invariant_incidents(
     batch_id: uuid.UUID,
     attempt_number: int,
     outcomes: tuple[InvariantOutcome, ...],
+    *,
+    origin: IncidentOrigin,
+    case_id: uuid.UUID | None,
 ) -> None:
     """Create or reopen incidents and append evidence for failed invariants."""
     now = datetime.now(UTC)
     for outcome in outcomes:
-        if outcome.passed:
+        if not outcome.failed:
             continue
         incident = session.scalar(
             select(Incident).where(
                 Incident.batch_id == batch_id,
                 Incident.incident_type == outcome.name,
+                Incident.origin == origin,
             )
         )
         if incident is None:
@@ -38,6 +42,8 @@ def record_invariant_incidents(
                 incident_id=uuid.uuid4(),
                 incident_type=outcome.name,
                 protocol_name=outcome.protocol_name,
+                origin=origin,
+                case_id=case_id,
                 severity=outcome.severity,
                 status=IncidentStatus.OPEN,
                 detected_at=now,
@@ -59,6 +65,7 @@ def record_invariant_incidents(
                 incident_id=incident.incident_id,
                 affected_entity=_affected_entity(record, batch_id),
                 evidence_type="invariant_violation",
+                origin=origin,
                 payload={
                     **record,
                     "invariant": outcome.name,
@@ -70,11 +77,19 @@ def record_invariant_incidents(
         )
 
 
-def resolve_batch_incidents(session: Session, batch_id: uuid.UUID) -> int:
+def resolve_batch_incidents(
+    session: Session,
+    batch_id: uuid.UUID,
+    *,
+    origin: IncidentOrigin,
+    case_id: uuid.UUID | None,
+) -> int:
     """Resolve active incidents after the same logical batch succeeds."""
     incidents = session.scalars(
         select(Incident).where(
             Incident.batch_id == batch_id,
+            Incident.origin == origin,
+            Incident.case_id == case_id,
             Incident.status.in_((IncidentStatus.OPEN, IncidentStatus.INVESTIGATING)),
         )
     )

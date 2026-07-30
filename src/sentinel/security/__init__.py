@@ -5,15 +5,25 @@ from sentinel.security.incidents import (
     resolve_batch_incidents,
 )
 from sentinel.security.invariants import (
+    AuthorityRegistry,
     CanonicalEvent,
+    EvaluationScope,
+    InvariantContext,
+    InvariantExecutionResult,
     InvariantOutcome,
+    canonical_event_order,
     reconstruct_balances,
     run_invariants,
 )
 
 __all__ = [
+    "AuthorityRegistry",
     "CanonicalEvent",
+    "EvaluationScope",
+    "InvariantContext",
+    "InvariantExecutionResult",
     "InvariantOutcome",
+    "canonical_event_order",
     "record_invariant_incidents",
     "reconstruct_balances",
     "resolve_batch_incidents",

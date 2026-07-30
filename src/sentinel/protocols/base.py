@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from sentinel.security import CanonicalEvent, InvariantOutcome
+from sentinel.security import CanonicalEvent, InvariantContext, InvariantOutcome
 
 
 @dataclass(frozen=True)
@@ -34,5 +34,6 @@ class ProtocolPlugin(Protocol):
         self,
         events: tuple[CanonicalEvent, ...],
         source: Mapping[str, Any],
+        context: InvariantContext,
     ) -> tuple[InvariantOutcome, ...]:
         """Run protocol-specific invariants over canonical event state."""

@@ -1,6 +1,7 @@
 import uuid
 
 from sentinel.cli.main import build_parser
+from sentinel.models import IncidentOrigin
 
 
 def test_cli_parses_db_migrate() -> None:
@@ -35,10 +36,11 @@ def test_cli_parses_fixture_ingestion() -> None:
 def test_cli_parses_incident_commands() -> None:
     incident_id = uuid.uuid4()
 
-    list_args = build_parser().parse_args(["incident", "list"])
+    list_args = build_parser().parse_args(["incident", "list", "--origin", "replay"])
     show_args = build_parser().parse_args(["incident", "show", str(incident_id)])
 
     assert list_args.incident_command == "list"
+    assert list_args.origin is IncidentOrigin.REPLAY
     assert show_args.incident_command == "show"
     assert show_args.incident_id == incident_id
 

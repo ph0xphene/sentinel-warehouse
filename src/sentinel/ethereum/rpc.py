@@ -35,6 +35,7 @@ class EthereumLog:
     block_hash: str
     transaction_hash: str
     log_index: int
+    transaction_index: int = 0
     removed: bool = False
 
 
@@ -88,6 +89,7 @@ def _log(value: object) -> EthereumLog:
         block_hash=str(value.get("blockHash", "")).lower(),
         transaction_hash=str(value.get("transactionHash", "")).lower(),
         log_index=_quantity(value.get("logIndex"), "log.logIndex"),
+        transaction_index=_quantity(value.get("transactionIndex"), "log.transactionIndex"),
         removed=bool(value.get("removed", False)),
     )
 

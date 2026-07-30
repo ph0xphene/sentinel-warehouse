@@ -1,0 +1,32 @@
+{
+  "source_name": "regression:uniswap-v2:honest-liquidity-remove",
+  "protocol": "uniswap_v2",
+  "chain_id": 1,
+  "checkpoint": "20000002",
+  "checkpoint_timestamp": "2026-02-01T00:02:00Z",
+  "pair": {
+    "address": "0x9999999999999999999999999999999999999999",
+    "token0": "0x1111111111111111111111111111111111111111",
+    "token1": "0x2222222222222222222222222222222222222222"
+  },
+  "tokens": [
+    {"address": "0x1111111111111111111111111111111111111111", "symbol": "TK0", "name": "Token Zero", "decimals": 0},
+    {"address": "0x2222222222222222222222222222222222222222", "symbol": "TK1", "name": "Token One", "decimals": 0}
+  ],
+  "opening_balances": [
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x1111111111111111111111111111111111111111", "amount": "1000"},
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x2222222222222222222222222222222222222222", "amount": "1000"}
+  ],
+  "transactions": [
+    {"tx_hash": "0x0303030303030303030303030303030303030303030303030303030303030303", "block_number": 20000002, "transaction_index": 9, "block_timestamp": "2026-02-01T00:02:00Z", "from_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "to_address": "0x9999999999999999999999999999999999999999", "success": true, "metadata": {}}
+  ],
+  "transfers": [],
+  "protocol_events": [
+    {"event_name": "Sync", "tx_hash": "0x0303030303030303030303030303030303030303030303030303030303030303", "log_index": 4, "reserve0": "900", "reserve1": "900"},
+    {"event_name": "Burn", "tx_hash": "0x0303030303030303030303030303030303030303030303030303030303030303", "log_index": 5, "sender": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "amount0": "100", "amount1": "100"}
+  ],
+  "balances": [
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x1111111111111111111111111111111111111111", "amount": "900"},
+    {"address": "0x9999999999999999999999999999999999999999", "token_address": "0x2222222222222222222222222222222222222222", "amount": "900"}
+  ]
+}

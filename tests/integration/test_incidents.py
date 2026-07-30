@@ -9,8 +9,10 @@ from sentinel.ingestion import ingest_fixture
 from sentinel.models import (
     Incident,
     IncidentEvidence,
+    IncidentOrigin,
     IncidentStatus,
     IngestionStatus,
+    InvariantResult,
 )
 from sentinel.security import InvariantOutcome
 
@@ -28,6 +30,7 @@ def test_invariant_failure_creates_incident_with_evidence(clean_engine) -> None:
                 Incident.incident_id,
                 Incident.status,
                 Incident.incident_type,
+                Incident.origin,
             ).where(
                 Incident.batch_id == summary.batch_id,
                 Incident.incident_type == "event_completeness",
@@ -38,15 +41,25 @@ def test_invariant_failure_creates_incident_with_evidence(clean_engine) -> None:
                 IncidentEvidence.affected_entity,
                 IncidentEvidence.evidence_type,
                 IncidentEvidence.payload,
+                IncidentEvidence.origin,
             ).where(IncidentEvidence.incident_id == incident.incident_id)
         ).one()
+        invariant_origin = connection.scalar(
+            select(InvariantResult.origin).where(
+                InvariantResult.batch_id == summary.batch_id,
+                InvariantResult.name == "event_completeness",
+            )
+        )
 
     assert summary.status is IngestionStatus.FAILED
     assert incident.status is IncidentStatus.OPEN
     assert incident.incident_type == "event_completeness"
+    assert incident.origin is IncidentOrigin.FIXTURE
+    assert invariant_origin is IncidentOrigin.FIXTURE
     assert evidence.affected_entity == "EVT-MISSING-DESTINATION"
     assert evidence.evidence_type == "invariant_violation"
     assert evidence.payload["invariant"] == "event_completeness"
+    assert evidence.origin is IncidentOrigin.FIXTURE
 
 
 def test_successful_batch_creates_no_incidents(clean_engine) -> None:
@@ -62,8 +75,8 @@ def test_successful_batch_creates_no_incidents(clean_engine) -> None:
 def test_successful_retry_resolves_previous_incident(clean_engine, monkeypatch) -> None:
     actual_run_invariants = fixture_pipeline.run_invariants
 
-    def force_transient_violation(events, reported_balances):
-        outcomes = list(actual_run_invariants(events, reported_balances))
+    def force_transient_violation(events, reported_balances, context):
+        outcomes = list(actual_run_invariants(events, reported_balances, context))
         outcomes[0] = InvariantOutcome(
             name="balance_conservation",
             severity="critical",

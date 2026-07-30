@@ -11,5 +11,7 @@ data/*
 !data/.gitkeep
 !data/fixtures/
 !data/fixtures/*.json
+!data/fixtures/**/
+!data/fixtures/**/*.json
 !data/incidents/
 !data/incidents/*.json

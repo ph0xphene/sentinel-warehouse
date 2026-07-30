@@ -58,10 +58,8 @@ def build_candidate_events(
                         else None
                     ),
                     amount=_decimal(balance.get("opening_amount")),
-                    metadata={
-                        "authorized_supply_change": True,
-                        "generated_from": "opening_balance",
-                    },
+                    metadata={"generated_from": "opening_balance"},
+                    checker_authorized=True,
                 )
             )
 
@@ -94,6 +92,31 @@ def build_candidate_events(
                     "description": transaction.get("description"),
                     "generated_from": "transaction",
                 },
+                chain_id=(
+                    int(transaction["chain_id"])
+                    if transaction.get("chain_id") is not None
+                    else None
+                ),
+                block_number=(
+                    int(transaction["block_number"])
+                    if transaction.get("block_number") is not None
+                    else None
+                ),
+                block_hash=(
+                    str(transaction["block_hash"]).lower()
+                    if transaction.get("block_hash") is not None
+                    else None
+                ),
+                transaction_index=(
+                    int(transaction["transaction_index"])
+                    if transaction.get("transaction_index") is not None
+                    else None
+                ),
+                log_index=(
+                    int(transaction["log_index"])
+                    if transaction.get("log_index") is not None
+                    else None
+                ),
             )
         )
 
@@ -124,6 +147,21 @@ def build_candidate_events(
                 ),
                 amount=_decimal(event.get("amount")),
                 metadata=event_metadata if isinstance(event_metadata, dict) else {},
+                chain_id=int(event["chain_id"]) if event.get("chain_id") is not None else None,
+                block_number=(
+                    int(event["block_number"]) if event.get("block_number") is not None else None
+                ),
+                block_hash=(
+                    str(event["block_hash"]).lower()
+                    if event.get("block_hash") is not None
+                    else None
+                ),
+                transaction_index=(
+                    int(event["transaction_index"])
+                    if event.get("transaction_index") is not None
+                    else None
+                ),
+                log_index=int(event["log_index"]) if event.get("log_index") is not None else None,
             )
         )
 

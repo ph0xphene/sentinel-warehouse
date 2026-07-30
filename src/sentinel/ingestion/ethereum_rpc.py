@@ -1,6 +1,5 @@
 import json
 import uuid
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -15,9 +14,11 @@ from sentinel.ingestion.ethereum import _normalize_source, _raw_stager
 from sentinel.ingestion.failures import FailureInjector
 from sentinel.ingestion.fixture import IngestionSummary, ingest_fixture_payload
 from sentinel.models import (
+    AnalysisStatus,
     FinancialEvent,
     Incident,
     IncidentEvidence,
+    IncidentOrigin,
     IncidentStatus,
     RawEthereumBlock,
     RawEthereumLog,
@@ -28,7 +29,7 @@ from sentinel.models import (
 )
 from sentinel.protocols import ProtocolNormalization, ProtocolPlugin, detect_rpc_protocol
 from sentinel.quality import QualityConfig
-from sentinel.security import CanonicalEvent, InvariantOutcome
+from sentinel.security import EvaluationScope, InvariantContext
 
 
 class EthereumRPCIngestionError(RuntimeError):
@@ -100,23 +101,6 @@ class EthereumRPCIngestionSummary:
     reorganization: ReorganizationSummary | None = None
 
 
-class _UnknownLogPlugin:
-    name = "unknown"
-
-    def detect(self, source: Mapping[str, Any]) -> bool:
-        return True
-
-    def normalize(self, source: Mapping[str, Any]) -> ProtocolNormalization:
-        return ProtocolNormalization(events=(), account_addresses=frozenset(), raw_records=())
-
-    def invariants(
-        self,
-        events: tuple[CanonicalEvent, ...],
-        source: Mapping[str, Any],
-    ) -> tuple[InvariantOutcome, ...]:
-        return ()
-
-
 def _source_name(chain_id: int, contract_address: str) -> str:
     return f"ethereum-rpc:{chain_id}:{contract_address.lower()}"
 
@@ -153,6 +137,7 @@ def _log_payload(log: EthereumLog, block: EthereumBlock) -> dict[str, object]:
         "block_number": log.block_number,
         "block_hash": log.block_hash,
         "transaction_hash": log.transaction_hash,
+        "transaction_index": log.transaction_index,
         "log_index": log.log_index,
         "removed": log.removed,
         "block_timestamp": _timestamp(block).isoformat(),
@@ -182,6 +167,7 @@ def _record_deep_reorg_incident(
             select(Incident).where(
                 Incident.batch_id == checkpoint.last_batch_id,
                 Incident.incident_type == "ethereum_deep_reorganization",
+                Incident.origin == IncidentOrigin.LIVE,
             )
         )
         if incident is not None:
@@ -192,6 +178,8 @@ def _record_deep_reorg_incident(
             incident_id=uuid.uuid4(),
             incident_type="ethereum_deep_reorganization",
             protocol_name=None,
+            origin=IncidentOrigin.LIVE,
+            case_id=None,
             severity="critical",
             status=IncidentStatus.OPEN,
             detected_at=datetime.now(UTC),
@@ -209,6 +197,7 @@ def _record_deep_reorg_incident(
                 incident_id=incident.incident_id,
                 affected_entity=checkpoint.source_name,
                 evidence_type="chain_reorganization",
+                origin=IncidentOrigin.LIVE,
                 payload={
                     "chain_id": configured_chain_id,
                     "checkpoint_block_number": checkpoint.block_number,
@@ -372,6 +361,7 @@ def _rpc_raw_stager(
                 block_number=log.block_number,
                 block_hash=log.block_hash,
                 tx_hash=log.transaction_hash,
+                transaction_index=log.transaction_index,
                 log_index=log.log_index,
                 contract_address=log.address,
                 topics=list(log.topics),
@@ -487,8 +477,15 @@ async def ingest_ethereum_rpc(
     if checkpoint_model is not None:
         source["previous_checkpoint"] = checkpoint_model.checkpoint_value
 
-    plugin: ProtocolPlugin = detect_rpc_protocol(source) or _UnknownLogPlugin()
-    protocol = plugin.normalize(source)
+    plugin: ProtocolPlugin | None = detect_rpc_protocol(source)
+    protocol = (
+        plugin.normalize(source)
+        if plugin is not None
+        else ProtocolNormalization(events=(), account_addresses=frozenset(), raw_records=())
+    )
+    analysis_status = (
+        AnalysisStatus.PARTIALLY_SUPPORTED if plugin is not None else AnalysisStatus.UNSUPPORTED
+    )
     normalized = _normalize_source(source, protocol, engine)
     source_content = json.dumps(
         {
@@ -512,6 +509,14 @@ async def ingest_ethereum_rpc(
         stage_financial_records=False,
         protocol_plugin=plugin,
         protocol_source=source,
+        analysis_status=analysis_status,
+        origin=IncidentOrigin.LIVE,
+        invariant_context=InvariantContext(
+            source_system=source_name,
+            chain_id=config.chain_id,
+            block_range=(start, effective_to),
+            evaluation_scope=EvaluationScope.PARTIAL_HISTORY,
+        ),
     )
     checkpoint_after_model = _load_checkpoint(engine, source_name)
     return EthereumRPCIngestionSummary(

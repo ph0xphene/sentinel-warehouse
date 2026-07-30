@@ -103,8 +103,15 @@ def test_dataset_export_is_wide_labeled_parquet(clean_engine, tmp_path) -> None:
     assert table.schema.metadata[b"dataset"] == b"sentinel_security_incidents"
     assert table.schema.metadata[b"dataset_version"] == DATASET_VERSION.encode()
     assert table.schema.metadata[b"extraction_version"] == EXTRACTION_VERSION.encode()
+    assert table.schema.metadata[b"extractor_version"] == EXTRACTION_VERSION.encode()
     assert table.schema.metadata[b"schema_version"] == SCHEMA_VERSION.encode()
     assert table.schema.metadata[b"generated_at"].endswith(b"Z")
+    assert table.schema.metadata[b"git_revision"]
+    assert summary.git_revision == table.schema.metadata[b"git_revision"].decode()
+    assert all(
+        table.schema.field(name).type == dataset_module.pa.decimal128(38, 18)
+        for name in dataset_module.NUMERIC_FEATURES
+    )
     assert {row["attack_pattern_name"] for row in rows} == {
         "Unbacked balance creation",
         "Benign conserved transfer",
@@ -118,10 +125,12 @@ def test_dataset_export_is_wide_labeled_parquet(clean_engine, tmp_path) -> None:
     assert attack_row["attack_subcategory_name"] == "Unauthorized supply change"
     assert attack_row["chain"] == "research-simulation"
     assert attack_row["confidence_level"] == "high"
-    assert attack_row["balance_delta"] == 100.0
+    assert isinstance(attack_row["balance_delta"], Decimal)
+    assert attack_row["balance_delta"] == Decimal("100.000000000000000000")
     assert control_row["failed_invariants"] == "none"
     assert control_row["event_type_sequence"] == "TRANSFER"
-    assert control_row["balance_delta"] == 0.0
+    assert isinstance(control_row["balance_delta"], Decimal)
+    assert control_row["balance_delta"] == Decimal("0E-18")
     assert all(row["replay_matched"] for row in rows)
 
 

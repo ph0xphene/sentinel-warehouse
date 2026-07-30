@@ -21,6 +21,7 @@ def export_dataset(output: Path, engine: Engine | None = None) -> int:
     print(f"Dataset version:    {summary.dataset_version}")
     print(f"Extraction version: {summary.extraction_version}")
     print(f"Schema version:     {summary.schema_version}")
+    print(f"Git revision:       {summary.git_revision}")
     print(f"Generated at:       {summary.generated_at}")
     return 0
 

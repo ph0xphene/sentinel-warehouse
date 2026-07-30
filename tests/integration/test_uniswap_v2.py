@@ -9,6 +9,7 @@ from sentinel.models import (
     FinancialEvent,
     Incident,
     IncidentEvidence,
+    IncidentOrigin,
     IngestionStatus,
     InvariantResult,
     RawFinancialRecord,
@@ -18,6 +19,7 @@ from sentinel.protocols import detect_protocol
 pytestmark = pytest.mark.integration
 
 FIXTURES = Path("data/fixtures")
+REGRESSION_FIXTURES = FIXTURES / "uniswap" / "regression"
 
 
 def test_uniswap_plugin_detects_and_normalizes_all_supported_events(clean_engine) -> None:
@@ -32,7 +34,9 @@ def test_uniswap_plugin_detects_and_normalizes_all_supported_events(clean_engine
     with clean_engine.connect() as connection:
         event_types = set(
             connection.scalars(
-                select(FinancialEvent.event_type).where(FinancialEvent.source_system == "ethereum")
+                select(FinancialEvent.event_type).where(
+                    FinancialEvent.source_system == source["source_name"]
+                )
             )
         )
         protocol_events = set(
@@ -45,7 +49,7 @@ def test_uniswap_plugin_detects_and_normalizes_all_supported_events(clean_engine
         raw_protocol_records = connection.scalar(
             select(func.count())
             .select_from(RawFinancialRecord)
-            .where(RawFinancialRecord.source_name == "ethereum")
+            .where(RawFinancialRecord.source_name == source["source_name"])
         )
         protocol_invariants = connection.execute(
             select(
@@ -57,8 +61,8 @@ def test_uniswap_plugin_detects_and_normalizes_all_supported_events(clean_engine
         incident_count = connection.scalar(select(func.count()).select_from(Incident))
 
     assert summary.status is IngestionStatus.SUCCEEDED
-    assert summary.raw_records == 12
-    assert {"MINT", "BURN", "DEPOSIT", "WITHDRAWAL", "ADJUSTMENT"} <= event_types
+    assert summary.raw_records == 9
+    assert {"CREATE", "DEPOSIT", "WITHDRAWAL", "ADJUSTMENT"} <= event_types
     assert {"Mint", "Burn", "Swap", "Sync"} == protocol_events
     assert raw_protocol_records == 6
     assert {row.name for row in protocol_invariants} == {
@@ -98,3 +102,52 @@ def test_uniswap_reserve_violation_creates_protocol_incident(clean_engine) -> No
     assert incident.protocol_name == "uniswap_v2"
     assert evidence_protocol == "reserve_consistency"
     assert event_count == 0
+
+
+@pytest.mark.parametrize(
+    "fixture_name",
+    [
+        "honest_swap.json",
+        "honest_liquidity_add.json",
+        "honest_liquidity_remove.json",
+        "donation_sync.json",
+    ],
+)
+def test_honest_uniswap_regressions_have_no_false_positive(
+    clean_engine,
+    fixture_name: str,
+) -> None:
+    summary = ingest_ethereum_fixture(REGRESSION_FIXTURES / fixture_name, clean_engine)
+
+    with clean_engine.connect() as connection:
+        incidents = connection.scalar(select(func.count()).select_from(Incident))
+        protocol_results = connection.execute(
+            select(InvariantResult.name, InvariantResult.execution_result).where(
+                InvariantResult.protocol_name == "uniswap_v2"
+            )
+        ).all()
+
+    assert summary.status is IngestionStatus.SUCCEEDED
+    assert incidents == 0
+    assert {row.name for row in protocol_results} == {
+        "reserve_consistency",
+        "liquidity_conservation",
+    }
+    assert all(row.execution_result == "passed" for row in protocol_results)
+
+
+def test_invalid_uniswap_reserve_regression_creates_fixture_incident(clean_engine) -> None:
+    summary = ingest_ethereum_fixture(
+        REGRESSION_FIXTURES / "invalid_reserve_state.json",
+        clean_engine,
+    )
+
+    with clean_engine.connect() as connection:
+        incident = connection.execute(
+            select(Incident.incident_type, Incident.origin).where(
+                Incident.batch_id == summary.batch_id
+            )
+        ).one()
+
+    assert summary.status is IngestionStatus.FAILED
+    assert incident == ("reserve_consistency", IncidentOrigin.FIXTURE)

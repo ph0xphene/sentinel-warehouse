@@ -27,6 +27,7 @@ from sentinel.ingestion import (
     ingest_ethereum_rpc,
     ingest_fixture,
 )
+from sentinel.models import IncidentOrigin
 from sentinel.quality import QualityConfig
 
 
@@ -69,7 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     incident = commands.add_parser("incident", help="Inspect security incidents")
     incident_commands = incident.add_subparsers(dest="incident_command", required=True)
-    incident_commands.add_parser("list", help="List detected incidents")
+    incident_list = incident_commands.add_parser("list", help="List detected incidents")
+    incident_list.add_argument(
+        "--origin",
+        type=lambda value: IncidentOrigin(value.upper()),
+        choices=tuple(IncidentOrigin),
+    )
     incident_show = incident_commands.add_parser("show", help="Show incident evidence")
     incident_show.add_argument("incident_id", type=uuid.UUID)
 
@@ -144,7 +150,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "incident":
         if args.incident_command == "list":
-            return list_incidents()
+            return list_incidents(origin=args.origin)
         return show_incident(args.incident_id)
     if args.command == "case":
         if args.case_command == "list":
@@ -204,6 +210,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         summary = ingest_fixture(args.path, quality_config=quality_config)
     print(f"Batch:        {summary.batch_id}")
     print(f"Status:       {summary.status.value}")
+    print(f"Analysis:     {summary.analysis_status.value}")
     print(f"Raw records:  {summary.raw_records}")
     print(f"Core records: {summary.core_records}")
     print(f"Attempt:      {summary.attempt_number}")
@@ -212,6 +219,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         status = "PASS" if outcome.passed else "FAIL"
         print(f"Quality:      {outcome.check_name}: {status}")
     for outcome in summary.invariant_results:
-        status = "PASS" if outcome.passed else "FAIL"
+        status = outcome.execution_result.upper()
         print(f"Invariant:    {outcome.name}: {status}")
     return 0 if summary.status.value == "succeeded" else 1

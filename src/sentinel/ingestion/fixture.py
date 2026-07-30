@@ -2,7 +2,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -21,10 +21,12 @@ from sentinel.ingestion.failures import (
 from sentinel.ingestion.lifecycle import record_initial_state, transition_batch
 from sentinel.models import (
     Account,
+    AnalysisStatus,
     Asset,
     Balance,
     FinancialEvent,
     FinancialTransaction,
+    IncidentOrigin,
     IngestionBatch,
     IngestionStatus,
     InvariantResult,
@@ -40,6 +42,9 @@ from sentinel.protocols.base import ProtocolPlugin
 from sentinel.quality import CheckOutcome, QualityConfig, run_quality_checks
 from sentinel.security import (
     CanonicalEvent,
+    EvaluationScope,
+    InvariantContext,
+    InvariantExecutionResult,
     InvariantOutcome,
     record_invariant_incidents,
     resolve_batch_incidents,
@@ -68,6 +73,7 @@ class IngestionSummary:
     quality_results: tuple[CheckOutcome, ...]
     invariant_results: tuple[InvariantOutcome, ...]
     attempt_number: int
+    analysis_status: AnalysisStatus
     idempotent: bool = False
 
 
@@ -137,6 +143,8 @@ def _invariant_model(
     batch_id: uuid.UUID,
     attempt_number: int,
     outcome: InvariantOutcome,
+    origin: IncidentOrigin,
+    case_id: uuid.UUID | None,
 ) -> InvariantResult:
     return InvariantResult(
         invariant_id=uuid.uuid4(),
@@ -144,6 +152,8 @@ def _invariant_model(
         attempt_number=attempt_number,
         name=outcome.name,
         protocol_name=outcome.protocol_name,
+        origin=origin,
+        case_id=case_id,
         severity=outcome.severity,
         description=outcome.description,
         execution_result=outcome.execution_result,
@@ -254,22 +264,13 @@ def _load_core(
                 batch_id=batch_id,
                 source_system=source_name,
                 external_id=event.external_id,
-                chain_id=(
-                    int(event.metadata["chain_id"])
-                    if event.metadata.get("chain_id") is not None
-                    else None
-                ),
-                block_number=(
-                    int(event.metadata["block_number"])
-                    if event.metadata.get("block_number") is not None
-                    else None
-                ),
-                block_hash=(
-                    str(event.metadata["block_hash"]).lower()
-                    if event.metadata.get("block_hash") is not None
-                    else None
-                ),
+                chain_id=(event.chain_id if event.chain_id is not None else None),
+                block_number=event.block_number,
+                transaction_index=event.transaction_index,
+                log_index=event.log_index,
+                block_hash=event.block_hash,
                 canonical=True,
+                checker_authorized=event.checker_authorized,
                 event_type=event.event_type,
                 occurred_at=event.occurred_at,
                 asset_id=(
@@ -313,11 +314,24 @@ def _existing_canonical_events(source_name: str, session: Session) -> tuple[Cano
             external_id=event.external_id,
             event_type=event.event_type,
             occurred_at=event.occurred_at,
-            asset_external_id=asset_external_ids.get(event.asset_id),
+            asset_external_id=(
+                asset_external_ids.get(event.asset_id)
+                or (
+                    str(event.event_metadata["token_address"])
+                    if event.event_metadata.get("token_address") is not None
+                    else None
+                )
+            ),
             account_from_external_id=account_external_ids.get(event.account_from_id),
             account_to_external_id=account_external_ids.get(event.account_to_id),
             amount=event.amount,
             metadata=event.event_metadata,
+            chain_id=event.chain_id,
+            block_number=event.block_number,
+            block_hash=event.block_hash,
+            transaction_index=event.transaction_index,
+            log_index=event.log_index,
+            checker_authorized=event.checker_authorized,
         )
         for event in session.scalars(
             select(FinancialEvent).where(
@@ -332,6 +346,9 @@ def _prepare_batch(
     engine: Engine,
     source_name: str,
     checksum: str,
+    analysis_status: AnalysisStatus,
+    origin: IncidentOrigin,
+    case_id: uuid.UUID | None,
 ) -> tuple[uuid.UUID, int, bool, bool]:
     with session_scope(engine) as session:
         existing = session.scalar(
@@ -348,6 +365,7 @@ def _prepare_batch(
                     f"Batch {existing.batch_id} is already {existing.status.value}"
                 )
             existing.attempt_count += 1
+            existing.analysis_status = analysis_status
             existing.finished_at = None
             existing.rows_loaded = 0
             transition_batch(
@@ -366,6 +384,9 @@ def _prepare_batch(
             rows_loaded=0,
             checksum=checksum,
             attempt_count=1,
+            analysis_status=analysis_status,
+            origin=origin,
+            case_id=case_id,
         )
         session.add(batch)
         session.flush()
@@ -464,6 +485,7 @@ def _stored_summary(
                 severity=result.severity,
                 description=result.description,
                 affected_records=tuple(result.affected_records),
+                result=InvariantExecutionResult(result.execution_result),
             )
             for result in invariant_rows
         )
@@ -508,6 +530,7 @@ def _stored_summary(
             quality_results=outcomes,
             invariant_results=invariant_outcomes,
             attempt_number=batch.attempt_count,
+            analysis_status=batch.analysis_status,
             idempotent=idempotent,
         )
 
@@ -541,15 +564,33 @@ def ingest_fixture_payload(
     stage_financial_records: bool = True,
     protocol_plugin: ProtocolPlugin | None = None,
     protocol_source: Mapping[str, Any] | None = None,
+    analysis_status: AnalysisStatus = AnalysisStatus.SUPPORTED,
+    origin: IncidentOrigin = IncidentOrigin.FIXTURE,
+    case_id: uuid.UUID | None = None,
+    invariant_context: InvariantContext | None = None,
 ) -> IngestionSummary:
     """Run the shared pipeline for an adapter-normalized fixture payload."""
     engine = engine or create_database_engine()
     quality_config = quality_config or QualityConfig.default()
     failure_injector = failure_injector or FailureInjector()
     source_name = str(fixture.get("source_name", "unknown"))
-    checksum = hashlib.sha256(source_content).hexdigest()
+    logical_identity = (
+        source_content
+        + b"\0"
+        + origin.value.encode()
+        + b"\0"
+        + (str(case_id).encode() if case_id is not None else b"-")
+    )
+    checksum = hashlib.sha256(logical_identity).hexdigest()
     records = _all_records(fixture)
-    batch_id, attempt, idempotent, retry = _prepare_batch(engine, source_name, checksum)
+    batch_id, attempt, idempotent, retry = _prepare_batch(
+        engine,
+        source_name,
+        checksum,
+        analysis_status,
+        origin,
+        case_id,
+    )
 
     if idempotent:
         return _stored_summary(engine, batch_id, idempotent=True)
@@ -580,6 +621,20 @@ def ingest_fixture_payload(
             transition_batch(session, batch, IngestionStatus.STAGED)
 
         failure_injector.trigger(FailurePoint.AFTER_RAW_STAGE)
+
+        if analysis_status is AnalysisStatus.UNSUPPORTED:
+            with session_scope(engine) as session:
+                batch = session.get(IngestionBatch, batch_id)
+                if batch is None:
+                    raise RuntimeError(f"Ingestion batch {batch_id} was not persisted")
+                transition_batch(
+                    session,
+                    batch,
+                    IngestionStatus.FAILED,
+                    {"reason": "unsupported_analysis"},
+                )
+                batch.finished_at = datetime.now(UTC)
+            return _stored_summary(engine, batch_id)
 
         with session_scope(engine) as session:
             batch = session.get(IngestionBatch, batch_id)
@@ -634,6 +689,34 @@ def ingest_fixture_payload(
             fixture,
             has_previous_checkpoint=checkpoint is not None,
         )
+        event_blocks = tuple(
+            event.block_number for event in candidate_events if event.block_number is not None
+        )
+        system_authorized_event_ids = frozenset(
+            event.external_id for event in candidate_events if event.checker_authorized
+        )
+        if invariant_context is None:
+            context = InvariantContext(
+                source_system=source_name,
+                chain_id=next(
+                    (event.chain_id for event in candidate_events if event.chain_id is not None),
+                    None,
+                ),
+                block_range=(min(event_blocks), max(event_blocks)) if event_blocks else None,
+                evaluation_scope=EvaluationScope.FULL_STATE,
+                system_authorized_event_ids=system_authorized_event_ids,
+            )
+        else:
+            context = replace(
+                invariant_context,
+                block_range=(
+                    invariant_context.block_range
+                    or ((min(event_blocks), max(event_blocks)) if event_blocks else None)
+                ),
+                system_authorized_event_ids=(
+                    invariant_context.system_authorized_event_ids | system_authorized_event_ids
+                ),
+            )
         with session_scope(engine) as session:
             existing_events = _existing_canonical_events(source_name, session)
             batch = session.get(IngestionBatch, batch_id)
@@ -641,23 +724,35 @@ def ingest_fixture_payload(
                 raise RuntimeError(f"Ingestion batch {batch_id} was not persisted")
             transition_batch(session, batch, IngestionStatus.INVARIANT_CHECKING)
 
+        context = replace(
+            context,
+            system_authorized_event_ids=(
+                context.system_authorized_event_ids
+                | frozenset(
+                    event.external_id for event in existing_events if event.checker_authorized
+                )
+            ),
+        )
+
         failure_injector.trigger(FailurePoint.BEFORE_INVARIANT_CHECK)
 
         global_outcomes = run_invariants(
             (*existing_events, *candidate_events),
             fixture.get("balances", []),
+            context,
         )
         protocol_outcomes = (
             protocol_plugin.invariants(
                 (*existing_events, *candidate_events),
                 protocol_source or {},
+                context,
             )
             if protocol_plugin is not None
             else ()
         )
         invariant_outcomes = (*global_outcomes, *protocol_outcomes)
         invariants_passed = all(
-            outcome.passed
+            not outcome.failed
             or (
                 outcome.name == "balance_snapshot_match"
                 and not quality_config.is_blocking("transaction_reconciliation")
@@ -670,13 +765,16 @@ def ingest_fixture_payload(
             if batch is None:
                 raise RuntimeError(f"Ingestion batch {batch_id} was not persisted")
             session.add_all(
-                _invariant_model(batch_id, attempt, outcome) for outcome in invariant_outcomes
+                _invariant_model(batch_id, attempt, outcome, origin, case_id)
+                for outcome in invariant_outcomes
             )
             record_invariant_incidents(
                 session,
                 batch_id,
                 attempt,
                 invariant_outcomes,
+                origin=origin,
+                case_id=case_id,
             )
             if not invariants_passed:
                 transition_batch(
@@ -699,7 +797,7 @@ def ingest_fixture_payload(
                 raise RuntimeError(f"Ingestion batch {batch_id} was not persisted")
             core_records = _load_core(fixture, batch_id, session, candidate_events)
             _persist_checkpoint(fixture, batch_id, session)
-            resolve_batch_incidents(session, batch_id)
+            resolve_batch_incidents(session, batch_id, origin=origin, case_id=case_id)
             failure_injector.trigger(FailurePoint.AFTER_CORE_LOAD)
             batch.rows_loaded = core_records
             batch.finished_at = datetime.now(UTC)

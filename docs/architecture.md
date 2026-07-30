@@ -141,7 +141,9 @@ The invariant engine currently executes:
 - `balance_snapshot_match`: reported balances must match event-derived balances.
 
 Each execution is written to `security.invariants` with severity, description, result,
-affected records, batch ID, and attempt number. These records are independent from
+affected records, batch ID, attempt number, origin, and optional case ID. Results are
+`passed`, `failed`, or `insufficient_evidence`; the last value records that the checker lacks
+the state needed to prove a claim and is not treated as proof of success. These records are independent from
 `metadata.quality_results`: quality validates source shape, while invariants validate
 financial behavior.
 
@@ -192,6 +194,8 @@ Operators can inspect the investigation ledger without direct SQL:
 
 ```bash
 uv run sentinel incident list
+uv run sentinel incident list --origin LIVE
+uv run sentinel incident list --origin REPLAY
 uv run sentinel incident show <incident-id>
 ```
 
@@ -269,7 +273,8 @@ Every plugin implements three operations:
 - `detect(source)` determines whether the plugin owns a source payload.
 - `normalize(source)` produces protocol-neutral canonical events, account addresses, and
   immutable raw records.
-- `invariants(events, source)` evaluates protocol rules after the global invariant engine.
+- `invariants(events, source, context)` evaluates protocol rules after the global invariant
+  engine using checker-owned context.
 
 The registry selects exactly one plugin. Adding a protocol therefore requires a plugin and
 registry entry, while raw staging, quality validation, batch lifecycle, retry behavior,
@@ -282,20 +287,23 @@ The first protocol-aware plugin supports the four pool event families:
 
 | Uniswap event | Canonical representation |
 | --- | --- |
-| `Mint` | One authorized `MINT` event for each reserve asset |
-| `Burn` | One authorized `BURN` event for each reserve asset |
-| `Swap` | Pool inputs as `DEPOSIT`; pool outputs as `WITHDRAWAL` |
-| `Sync` | Zero-amount `ADJUSTMENT` observations carrying reported reserves |
+| `Mint` | Action observation following the transaction's `Sync` |
+| `Burn` | Action observation following the transaction's `Sync` |
+| `Swap` | Action observation following the transaction's `Sync` |
+| `Sync` | Reserve deltas as `DEPOSIT`/`WITHDRAWAL`, or zero `ADJUSTMENT` |
 
-Deposits and withdrawals represent the bounded pool view: the plugin can reconstruct pool
-reserves without assuming that external trader balances are present in the fixture. Every
-canonical event retains its protocol name, source event family, transaction hash, and log
-index in structured metadata.
+This mirrors real pair log order: reserve-changing execution emits `Sync` before
+`Mint`, `Burn`, or `Swap`. A standalone reserve increase is accepted as a donation followed
+by `Sync`; an unexplained standalone decrease fails reserve consistency. Deposits and
+withdrawals represent the bounded pool view without claiming that external trader balances
+are present. Every event retains chain-native coordinates and protocol evidence.
 
 After global checks pass, Uniswap registers:
 
-- `reserve_consistency`: reconstructed pool balances must match the latest `Sync` reserves.
-- `liquidity_conservation`: the reserve product after a swap's next `Sync` must not decrease.
+- `reserve_consistency`: action amounts must reconcile the preceding same-transaction `Sync`
+  against known prior reserves.
+- `liquidity_conservation`: the reserve product represented by a swap's preceding `Sync` must
+  not decrease.
 
 Protocol failures use the existing incident and evidence workflow. Both invariant results
 and incidents store `protocol_name`, so investigators can filter violations without parsing
@@ -360,12 +368,15 @@ logs, decoded transfers, and financial events carry chain ID, block number, and 
 
 Observed records are never physically deleted. `canonical = false` means the source evidence
 was observed but no longer belongs to the selected chain. Balance reconstruction and duplicate
-checks read canonical financial events only. A partial historical range does not claim full
-account pre-state, so the global negative-balance invariant excludes live events marked
-`state_scope = partial_history`; conservation, completeness, protocol invariants, and all
-fixture-based full-state checks continue to run.
+checks read canonical financial events only. Ethereum replay order is strictly
+`(block_number, transaction_index, log_index)`, never timestamp or transaction hash. A
+checker-owned `InvariantContext` marks bounded live ranges as partial history. Checks that
+need complete opening state return `insufficient_evidence`; conservation, completeness, and
+applicable protocol checks still execute. Source metadata cannot change this scope.
 
 Unknown log signatures remain canonical raw observations and produce no financial events.
+An unknown-only contract range is recorded with analysis status `UNSUPPORTED`, ends as a
+failed operational result, and cannot advance the security checkpoint.
 ABI decoding stays in the ERC-20 or Uniswap plugin, with only static-word helpers shared under
 `sentinel.ethereum`.
 
@@ -405,8 +416,9 @@ the configured lookback; the adapter never silently selects a chain.
 - Collection covers one contract and an explicit historical range per invocation.
 - There is no transaction-receipt retrieval, mempool data, beacon finality, or chain daemon.
 - The deliberately small RPC interface cannot call token metadata or Uniswap pair getters.
-  Live ERC-20 amounts therefore remain integer base units (`decimals = 0`), and live Uniswap
-  reserve assets use deterministic `token0`/`token1` slot identifiers. Deterministic fixtures
+  Live ERC-20 amounts therefore remain explicit integer base units with unknown metadata.
+  Live Uniswap observations retain unknown reserve assets explicitly. The adapter does not
+  fabricate decimals or placeholder assets such as `pair:token0`. Deterministic fixtures
   continue to support declared token addresses and decimals.
 
 All default tests run through `FakeEthereumRPC`; public network access is never required.
@@ -612,8 +624,8 @@ Extraction version `2.0.0` adds:
 | `invariant_failure_category` | Categorical | Stable category mapped from failed invariants |
 
 Opening-balance events are excluded from sequence, duration, graph, and movement features.
-Ties are ordered by canonical external ID, and set-valued results are sorted before
-serialization.
+Ethereum sequences use block, transaction, and log coordinates. Non-chain ties use canonical
+external ID, and set-valued results are sorted before serialization.
 
 ### Validation gate
 
@@ -636,10 +648,14 @@ Every Parquet artifact carries schema metadata:
 - `extraction_version`: feature-definition version;
 - `schema_version`: physical Parquet schema version;
 - `generated_at`: UTC generation timestamp;
+- `extractor_version`: feature extractor implementation version;
+- `git_revision`: repository revision when available;
 - `dataset`: stable dataset identifier.
 
-The current versions are dataset `1.0.0`, extraction `2.0.0`, and schema `2`. The wide schema
-also includes rich provenance plus category, subcategory, and attack-pattern labels.
+The current versions are dataset `1.1.0`, extraction `3.0.0`, and schema `3`. Numeric
+financial features use Parquet `Decimal128(38,18)` and are never converted to binary float.
+The wide schema also includes rich provenance plus category, subcategory, and attack-pattern
+labels.
 
 ```bash
 uv run sentinel dataset validate
@@ -648,3 +664,26 @@ uv run sentinel dataset export
 
 This framework prepares reusable research data only. It does not train models, classify new
 events, invoke LLM/MCP systems, or expose a frontend.
+
+## Milestone 11 security correctness hardening
+
+Milestone 11 makes validation boundaries explicit without adding a new product area:
+
+- `InvariantContext` carries source, chain, block range, evaluation scope, and a minimal
+  checker-owned authority registry separately from untrusted events.
+- Payload keys such as `state_scope` and `authorized_supply_change` have no authority.
+  Pipeline-generated opening state has durable checker provenance; configured supply
+  authorities are keyed by source, chain, asset, and operation.
+- `LIVE`, `REPLAY`, and `FIXTURE` origins namespace batches, invariant results, incidents,
+  and evidence. Replay findings are linked by `case_id` and cannot appear in a live-only
+  incident query.
+- Ingestion batches state whether analysis is `SUPPORTED`, `PARTIALLY_SUPPORTED`, or
+  `UNSUPPORTED`. Unsupported ranges preserve raw evidence but fail without checkpoint
+  advancement.
+- Uniswap correctness fixtures cover honest swap, liquidity add, liquidity removal,
+  donation plus `Sync`, and an invalid reserve transition.
+
+These guarantees are intentionally bounded. `insufficient_evidence` is not a clean bill of
+health; partial ranges do not prove global account solvency, unknown token metadata is not
+inferred, and the current authority registry is a static checker configuration rather than
+on-chain role discovery.

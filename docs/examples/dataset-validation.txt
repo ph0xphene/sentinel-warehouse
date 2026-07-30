@@ -23,8 +23,8 @@ $ uv run sentinel dataset export
 Dataset:  data/exports/security_incidents.parquet
 Rows:     2
 Columns:  36
-Dataset version:    1.0.0
-Extraction version: 2.0.0
-Schema version:     2
+Dataset version:    1.1.0
+Extraction version: 3.0.0
+Schema version:     3
+Git revision:       <current-git-revision>
 Generated at:       2026-07-30T17:29:40.187568Z
-

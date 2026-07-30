@@ -9,6 +9,7 @@ from sentinel.models.core import (
     FinancialEvent,
     FinancialTransaction,
 )
+from sentinel.models.enums import AnalysisStatus, IncidentOrigin
 from sentinel.models.metadata import (
     BatchStateHistory,
     IngestionBatch,
@@ -38,6 +39,7 @@ from sentinel.models.security import (
 
 __all__ = [
     "Account",
+    "AnalysisStatus",
     "Asset",
     "AttackFlow",
     "AttackCategory",
@@ -56,6 +58,7 @@ __all__ = [
     "IncidentEvidence",
     "IncidentFeature",
     "IncidentStatus",
+    "IncidentOrigin",
     "InvariantResult",
     "QualityResult",
     "RawEthereumBlock",

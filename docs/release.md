@@ -35,12 +35,15 @@ export.
 - Event completeness
 - Balance-snapshot matching
 - Protocol-specific invariant registration
+- Checker-owned invariant scope and supply authority configuration
+- Explicit insufficient-evidence results for partial history
 
 ### Incident framework
 
 - Auditable incidents and structured evidence
 - Incident status lifecycle
 - Retry-aware resolution
+- Isolated live, replay, and fixture finding origins
 - Reproducible historical case import and replay
 - Normalized attack taxonomy and rich provenance
 
@@ -51,6 +54,8 @@ export.
 - Finality-aware range processing
 - Canonical block and log history
 - Chain-reorganization recovery
+- Chain-native block/transaction/log ordering
+- Explicit unsupported-analysis failure without checkpoint advancement
 - ERC-20 and Uniswap V2 protocol plugins
 
 ### Security dataset pipeline
@@ -59,16 +64,17 @@ export.
 - Sequence-aware features
 - Dataset provenance validation
 - Versioned, ML-ready Parquet export
+- Exact Decimal128 financial feature export
 
 ## Release versions
 
 | Component | Version |
 | --- | --- |
 | Application | `0.1.0` |
-| Dataset contract | `1.0.0` |
-| Feature extraction | `2.0.0` |
-| Parquet schema | `2` |
-| Latest database migration | `20260730_0011` |
+| Dataset contract | `1.1.0` |
+| Feature extraction | `3.0.0` |
+| Parquet schema | `3` |
+| Latest database migration | `20260730_0012` |
 
 ## Verification baseline
 
@@ -76,7 +82,7 @@ The release was prepared against:
 
 - Python 3.12
 - PostgreSQL 17 via Docker Compose
-- 68 passing unit and PostgreSQL integration tests
+- 79 passing unit and PostgreSQL integration tests
 - Ruff lint and format checks
 - Alembic model-drift and migration-head checks
 
@@ -90,4 +96,3 @@ deployment platform.
 
 No license has been selected yet. Add a root `LICENSE` file before representing the repository
 as granting open-source reuse or redistribution rights.
-

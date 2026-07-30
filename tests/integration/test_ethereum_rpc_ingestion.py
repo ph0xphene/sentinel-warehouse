@@ -11,8 +11,10 @@ from sentinel.ingestion import (
 )
 from sentinel.ingestion.failures import FailureInjector, FailurePoint
 from sentinel.models import (
+    AnalysisStatus,
     FinancialEvent,
     Incident,
+    IncidentOrigin,
     IncidentStatus,
     IngestionStatus,
     RawEthereumBlock,
@@ -255,9 +257,11 @@ def test_unknown_log_is_preserved_without_normalization(clean_engine) -> None:
         ).one()
         events = connection.scalar(select(func.count()).select_from(FinancialEvent))
 
-    assert summary.pipeline.status is IngestionStatus.SUCCEEDED
+    assert summary.pipeline.status is IngestionStatus.FAILED
+    assert summary.pipeline.analysis_status is AnalysisStatus.UNSUPPORTED
     assert summary.observed_logs == 1
     assert summary.normalized_events == 0
+    assert summary.checkpoint_after is None
     assert raw == ([unknown.topics[0]], "0x1234", True)
     assert events == 0
 
@@ -333,13 +337,19 @@ def test_deep_reorg_creates_operational_incident(clean_engine) -> None:
 
     with clean_engine.connect() as connection:
         incident = connection.execute(
-            select(Incident.incident_type, Incident.severity, Incident.status)
+            select(
+                Incident.incident_type,
+                Incident.severity,
+                Incident.status,
+                Incident.origin,
+            )
         ).one()
         checkpoint_number = connection.scalar(select(SourceCheckpoint.block_number))
 
     assert incident.incident_type == "ethereum_deep_reorganization"
     assert incident.severity == "critical"
     assert incident.status is IncidentStatus.OPEN
+    assert incident.origin is IncidentOrigin.LIVE
     assert checkpoint_number == 102
 
 

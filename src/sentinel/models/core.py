@@ -150,6 +150,13 @@ class FinancialEvent(Base):
             unique=True,
             postgresql_where=text("canonical"),
         ),
+        Index(
+            "ix_core_financial_events_chain_order",
+            "chain_id",
+            "block_number",
+            "transaction_index",
+            "log_index",
+        ),
         {"schema": "core"},
     )
 
@@ -164,8 +171,11 @@ class FinancialEvent(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     chain_id: Mapped[int | None] = mapped_column(BigInteger)
     block_number: Mapped[int | None] = mapped_column(BigInteger)
+    transaction_index: Mapped[int | None] = mapped_column(BigInteger)
+    log_index: Mapped[int | None] = mapped_column(BigInteger)
     block_hash: Mapped[str | None] = mapped_column(String(66))
     canonical: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    checker_authorized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     asset_id: Mapped[uuid.UUID | None] = mapped_column(
