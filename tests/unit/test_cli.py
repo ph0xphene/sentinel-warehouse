@@ -94,3 +94,40 @@ def test_cli_parses_dataset_export() -> None:
 
     validate_args = build_parser().parse_args(["dataset", "validate"])
     assert validate_args.dataset_command == "validate"
+
+
+def test_cli_parses_research_commands() -> None:
+    generate_args = build_parser().parse_args(
+        [
+            "research",
+            "generate",
+            "--rows",
+            "500000",
+            "--accounts",
+            "10000",
+            "--rows-per-file",
+            "125000",
+            "--seed",
+            "42",
+        ]
+    )
+    inspect_args = build_parser().parse_args(
+        ["research", "inspect", "data/research/generated/example"]
+    )
+    benchmark_args = build_parser().parse_args(
+        [
+            "research",
+            "benchmark",
+            "data/research/generated/example",
+            "--runs",
+            "5",
+        ]
+    )
+
+    assert generate_args.rows == 500_000
+    assert generate_args.accounts == 10_000
+    assert generate_args.rows_per_file == 125_000
+    assert generate_args.seed == 42
+    assert inspect_args.research_command == "inspect"
+    assert benchmark_args.research_command == "benchmark"
+    assert benchmark_args.runs == 5

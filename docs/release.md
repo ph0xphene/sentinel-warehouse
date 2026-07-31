@@ -82,7 +82,7 @@ export.
 | Dataset contract | `1.1.0` |
 | Feature extraction | `3.0.0` |
 | Parquet schema | `3` |
-| Latest database migration | `20260730_0012` |
+| Latest database migration | `20260730_0013` |
 
 ## Verification baseline
 
@@ -90,7 +90,7 @@ The release was prepared against:
 
 - Python 3.12
 - PostgreSQL 17 via Docker Compose
-- 83 passing unit and PostgreSQL integration tests
+- 88 passing unit and PostgreSQL integration tests
 - Ruff lint and format checks
 - Alembic model-drift and migration-head checks
 

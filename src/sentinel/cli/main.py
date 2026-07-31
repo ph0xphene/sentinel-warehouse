@@ -19,6 +19,11 @@ from sentinel.cli.cases import (
 )
 from sentinel.cli.datasets import export_dataset, validate_dataset
 from sentinel.cli.incidents import list_incidents, report_incident, show_incident
+from sentinel.cli.research import (
+    benchmark_dataset,
+    generate_dataset,
+    inspect_dataset,
+)
 from sentinel.config import get_settings
 from sentinel.database import create_database_engine
 from sentinel.ingestion import (
@@ -123,6 +128,40 @@ def build_parser() -> argparse.ArgumentParser:
         help="Validate labels, provenance, replay outcomes, and feature determinism",
     )
 
+    research = commands.add_parser(
+        "research",
+        help="Generate and analyze local Parquet research datasets",
+    )
+    research_commands = research.add_subparsers(
+        dest="research_command",
+        required=True,
+    )
+    research_generate = research_commands.add_parser(
+        "generate",
+        help="Generate a deterministic synthetic Parquet dataset",
+    )
+    research_generate.add_argument("--output", type=Path)
+    research_generate.add_argument("--rows", type=int, default=10_000)
+    research_generate.add_argument("--accounts", type=int, default=1_000)
+    research_generate.add_argument("--rows-per-file", type=int, default=100_000)
+    research_generate.add_argument("--seed", type=int, default=7)
+    research_inspect = research_commands.add_parser(
+        "inspect",
+        help="Summarize a Parquet dataset with DuckDB",
+    )
+    research_inspect.add_argument("dataset", type=Path)
+    research_inspect.add_argument("--threads", type=int, default=4)
+    research_inspect.add_argument("--memory-limit", default="4GB")
+    research_benchmark = research_commands.add_parser(
+        "benchmark",
+        help="Run the fixed DuckDB research query suite",
+    )
+    research_benchmark.add_argument("dataset", type=Path)
+    research_benchmark.add_argument("--output", type=Path)
+    research_benchmark.add_argument("--runs", type=int, default=3)
+    research_benchmark.add_argument("--threads", type=int, default=4)
+    research_benchmark.add_argument("--memory-limit", default="4GB")
+
     ingest = commands.add_parser("ingest", help="Run an ingestion pipeline")
     ingest_commands = ingest.add_subparsers(dest="ingest_command", required=True)
     fixture = ingest_commands.add_parser("fixture", help="Ingest a financial JSON fixture")
@@ -183,6 +222,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dataset_command == "validate":
             return validate_dataset()
         return export_dataset(args.output)
+    if args.command == "research":
+        if args.research_command == "generate":
+            return generate_dataset(
+                args.output,
+                rows=args.rows,
+                accounts=args.accounts,
+                rows_per_file=args.rows_per_file,
+                seed=args.seed,
+            )
+        if args.research_command == "inspect":
+            return inspect_dataset(
+                args.dataset,
+                threads=args.threads,
+                memory_limit=args.memory_limit,
+            )
+        return benchmark_dataset(
+            args.dataset,
+            args.output,
+            runs=args.runs,
+            threads=args.threads,
+            memory_limit=args.memory_limit,
+        )
 
     quality_config = QualityConfig.from_file(args.quality_config) if args.quality_config else None
     if args.ingest_command == "ethereum-rpc":

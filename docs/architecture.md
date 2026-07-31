@@ -734,3 +734,47 @@ or reviewed independently of Sentinel and PostgreSQL.
 
 The visualizations are deliberately explanatory rather than interactive. They do not provide
 a dashboard, live monitoring, graph exploration, or vulnerability detection.
+
+## Local research environment
+
+Large analytical experiments use a storage boundary rather than extending the transactional
+pipeline:
+
+```text
+Application path                         Research path
+
+source -> raw -> core -> security        deterministic generator / external data
+                 |                                      |
+                 v                                      v
+       analytics PostgreSQL views              partitioned Parquet files
+                                                        |
+                                                        v
+                                              DuckDB direct analysis
+```
+
+PostgreSQL remains the system of record for batch lifecycle, lineage, immutable source
+evidence, canonical events, invariants, incidents, and research-case metadata. Its
+`analytics` schema contains lightweight, read-only projections over canonical application
+data. It is not used as a bulk staging area for generated research corpora.
+
+The local lake under `data/research/` owns:
+
+- untouched externally acquired files;
+- formula-generated deterministic datasets;
+- curated, reproducible Parquet derivatives;
+- benchmark results and disposable intermediates.
+
+Every generated dataset has a content manifest with parameters, generator version, row
+counts, and file hashes. Generation is explicit and refuses to replace a non-empty target.
+DuckDB reads Parquet directly and is an optional dependency, keeping normal ingestion
+deployments independent from analytical tooling.
+
+Migration `20260730_0013` adds a canonical-event activity index plus
+`analytics.canonical_event_flows` and `analytics.daily_asset_activity`. The views preserve
+schema ownership and make bounded operational analysis convenient without adding derived
+tables or refresh orchestration.
+
+PostgreSQL and DuckDB benchmark entry points are fixed, visible scripts. The pgbench workload
+uses a dedicated database; the DuckDB suite records dataset identity, runtime parameters,
+software versions, host platform, and distribution statistics. Neither benchmark runs or
+generates data during installation, migration, tests, or shell activation.

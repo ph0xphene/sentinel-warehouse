@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel"
     )
+    research_root: Path = Path("data/research")
     log_level: str = "INFO"
     ethereum_chain_id: int = 1
     ethereum_chain_name: str = "mainnet"

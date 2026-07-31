@@ -5,7 +5,7 @@ systems.**
 
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-[![Tests](https://img.shields.io/badge/tests-83%20passing-brightgreen)](#quality)
+[![Tests](https://img.shields.io/badge/tests-88%20passing-brightgreen)](#quality)
 [![License](https://img.shields.io/badge/license-not%20yet%20specified-lightgrey)](#license)
 
 Sentinel Warehouse combines production-inspired data engineering with reproducible financial
@@ -104,6 +104,8 @@ See the [system architecture diagram](docs/diagrams/architecture.md) and
 - Zstandard-compressed, ML-ready Parquet export
 - Exact `Decimal128(38,18)` financial values
 - Dataset, extractor, schema, timestamp, and Git revision metadata
+- Separate local Parquet research lake with deterministic large-dataset generators
+- Direct DuckDB inspection and fixed workstation benchmark suites
 
 ### Investigation Reports
 
@@ -158,6 +160,32 @@ uv run sentinel dataset export
 ```
 
 The default artifact is written to `data/exports/security_incidents.parquet`.
+
+## Local research environment
+
+The application database and large analytical datasets are intentionally separate:
+PostgreSQL owns pipeline and investigation state, while `data/research/` holds local Parquet
+experiments. Enter the pinned Nix development shell and install the optional research group:
+
+```bash
+nix develop
+uv sync --group research
+```
+
+Generate a small deterministic dataset, inspect it directly with DuckDB, and benchmark the
+fixed analytical query suite:
+
+```bash
+uv run sentinel research generate
+uv run --group research sentinel research inspect \
+  data/research/generated/synthetic-seed-7-rows-10000
+scripts/benchmark-duckdb.sh \
+  data/research/generated/synthetic-seed-7-rows-10000
+```
+
+Generation is explicit, defaults to 10,000 events, and never creates a million-row dataset
+during setup or tests. See the [NixOS research workstation guide](docs/nixos.md) for storage,
+PostgreSQL tuning, DuckDB SQL, capacity planning, and isolated benchmark commands.
 
 ## Investigation Reports
 
@@ -231,6 +259,7 @@ There is no continuous indexer or network dependency in the test suite.
 | [Pipeline diagram](docs/diagrams/pipeline.md) | Success and invariant-failure sequence |
 | [Ethereum diagram](docs/diagrams/ethereum.md) | RPC, raw chain data, plugins, and invariants |
 | [Incident replay diagram](docs/diagrams/incident-flow.md) | Research-case replay and dataset export |
+| [NixOS research workstation](docs/nixos.md) | Reproducible shell, storage boundary, generation, DuckDB, and benchmarks |
 | [Release notes](docs/release.md) | Scope of v0.1.0 |
 
 ## Repository structure
@@ -246,14 +275,18 @@ src/sentinel/
   quality/      Configurable source-data checks
   security/     Invariants, incidents, replay, features, and export
   reporting/    Static HTML, timeline, chart, and SVG report generation
+  research/     Deterministic Parquet generation and DuckDB analysis
   cli/          Operational command-line interface
 
 migrations/     Alembic migration history
 tests/unit/     Isolated domain and CLI tests
 tests/integration/ PostgreSQL-backed pipeline scenarios
 configs/        Versioned, non-secret configuration
+scripts/        Explicit local benchmark entry points
+sql/            PostgreSQL analytics and DuckDB research queries
 data/fixtures/  Deterministic ingestion scenarios
 data/incidents/ Versioned security research cases
+data/research/  Git-ignored external, generated, curated, and benchmark data
 docs/           Concepts, diagrams, examples, and release notes
 ```
 
@@ -274,11 +307,11 @@ uv run alembic check
 PostgreSQL integration tests use:
 
 ```bash
-SENTINEL_TEST_DATABASE_URL=postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel \
+SENTINEL_TEST_DATABASE_URL=postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel_test \
   uv run pytest -m integration
 ```
 
-The v0.1.0 release baseline is 83 passing tests. Tests use an injectable Ethereum RPC client;
+The current baseline is 88 passing tests. Tests use an injectable Ethereum RPC client;
 they do not contact a public network.
 
 ## Project scope

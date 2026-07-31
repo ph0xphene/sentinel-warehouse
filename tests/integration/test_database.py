@@ -34,3 +34,18 @@ def test_all_platform_schemas_exist(migrated_engine) -> None:
         schemas = set(connection.execute(query))
 
     assert {"metadata", "raw", "core", "analytics", "security"} <= {row[0] for row in schemas}
+
+
+def test_analytics_views_and_event_activity_index_exist(migrated_engine) -> None:
+    inspector = inspect(migrated_engine)
+    views = set(inspector.get_view_names(schema="analytics"))
+    indexes = {
+        index["name"]
+        for index in inspector.get_indexes(
+            "financial_events",
+            schema="core",
+        )
+    }
+
+    assert {"canonical_event_flows", "daily_asset_activity"} <= views
+    assert "ix_core_financial_events_activity" in indexes

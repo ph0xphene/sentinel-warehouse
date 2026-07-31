@@ -16,3 +16,9 @@ data/*
 !data/fixtures/**/*.json
 !data/incidents/
 !data/incidents/*.json
+!data/README.md
+!data/research/
+data/research/**/*
+!data/research/README.md
+!data/research/**/
+!data/research/**/.gitkeep

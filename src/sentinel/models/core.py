@@ -157,6 +157,12 @@ class FinancialEvent(Base):
             "transaction_index",
             "log_index",
         ),
+        Index(
+            "ix_core_financial_events_activity",
+            "occurred_at",
+            "asset_id",
+            postgresql_where=text("canonical"),
+        ),
         {"schema": "core"},
     )
 
